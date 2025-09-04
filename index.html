@@ -53,18 +53,33 @@
             <input id="ava-bit" type="number" min="0" max="7" value="0" autocomplete="off" class="short" />
           </label>
         </div>
-        <button id="ava-run" class="btn">計算する</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0;">
+          <button id="ava-run" class="btn">計算する</button>
+          <div class="switch-container">
+            <span class="switch-label">3D表示</span>
+            <label class="switch">
+              <input type="checkbox" id="ava-toggle-3d">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
 
         <div class="grid-2">
           <div>
             <h3>元の入力</h3>
             <pre id="ava-hex-a" class="mono"></pre>
-            <canvas id="ava-canvas-a" width="400" height="400" aria-label="Original digest grid"></canvas>
+            <div class="canvas-container">
+              <canvas id="ava-canvas-a" width="400" height="400" aria-label="Original digest grid"></canvas>
+              <div id="ava-3d-a" class="canvas-3d"></div>
+            </div>
           </div>
           <div>
             <h3>1ビット反転後</h3>
             <pre id="ava-hex-b" class="mono"></pre>
-            <canvas id="ava-canvas-b" width="400" height="400" aria-label="Flipped digest grid"></canvas>
+            <div class="canvas-container">
+              <canvas id="ava-canvas-b" width="400" height="400" aria-label="Flipped digest grid"></canvas>
+              <div id="ava-3d-b" class="canvas-3d"></div>
+            </div>
           </div>
         </div>
 
@@ -72,6 +87,23 @@
           <span>相違ビット数: <strong id="ava-diff-count">-</strong></span>
           <span>相違率: <strong id="ava-diff-rate">-</strong></span>
         </div>
+
+        <details class="statistics-accordion">
+          <summary>統計データ</summary>
+          <div class="statistics-content">
+            <div class="grid-2">
+              <div>
+                <h4>元の入力の統計</h4>
+                <div id="ava-stats-a" class="stats-table"></div>
+              </div>
+              <div>
+                <h4>1ビット反転後の統計</h4>
+                <div id="ava-stats-b" class="stats-table"></div>
+              </div>
+            </div>
+          </div>
+        </details>
+
         <p class="hint">※ MD5/SHA-1 は安全でないため、実運用では使用しないでください。</p>
       </div>
     </section>
@@ -96,8 +128,29 @@
             <button id="viz-run" class="btn">ハッシュ化</button>
           </div>
         </div>
+        
+        <div class="row compact right">
+          <div class="switch-container">
+            <span class="switch-label">3D表示</span>
+            <label class="switch">
+              <input type="checkbox" id="viz-toggle-3d">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        
         <pre id="viz-hex" class="mono"></pre>
-        <canvas id="viz-canvas" width="400" height="400" aria-label="Digest grid"></canvas>
+        <div class="canvas-container">
+          <canvas id="viz-canvas" width="400" height="400" aria-label="Digest grid"></canvas>
+          <div id="viz-3d" class="canvas-3d"></div>
+        </div>
+
+        <details class="statistics-accordion">
+          <summary>統計データ</summary>
+          <div class="statistics-content">
+            <div id="viz-stats" class="stats-table"></div>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -147,24 +200,55 @@
         <input type="hidden" id="col-encoding" value="hex">
         <input type="hidden" id="col-algo" value="SHA-1">
 
-        <button id="col-run" class="btn" style="margin: 12px 0;">計算</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0;">
+          <button id="col-run" class="btn">計算</button>
+          <div class="switch-container">
+            <span class="switch-label">3D表示</span>
+            <label class="switch">
+              <input type="checkbox" id="col-toggle-3d">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
 
         <div class="grid-2">
           <div>
             <h3>ハッシュA</h3>
             <pre id="col-hex-a" class="mono"></pre>
-            <canvas id="col-canvas-a" width="400" height="400"></canvas>
+            <div class="canvas-container">
+              <canvas id="col-canvas-a" width="400" height="400"></canvas>
+              <div id="col-3d-a" class="canvas-3d"></div>
+            </div>
           </div>
           <div>
             <h3>ハッシュB</h3>
             <pre id="col-hex-b" class="mono"></pre>
-            <canvas id="col-canvas-b" width="400" height="400"></canvas>
+            <div class="canvas-container">
+              <canvas id="col-canvas-b" width="400" height="400"></canvas>
+              <div id="col-3d-b" class="canvas-3d"></div>
+            </div>
           </div>
         </div>
 
         <div class="badge-row">
           <span id="col-result" class="badge">未計算</span>
         </div>
+
+        <details class="statistics-accordion">
+          <summary>統計データ</summary>
+          <div class="statistics-content">
+            <div class="grid-2">
+              <div>
+                <h4>入力Aの統計</h4>
+                <div id="col-stats-a" class="stats-table"></div>
+              </div>
+              <div>
+                <h4>入力Bの統計</h4>
+                <div id="col-stats-b" class="stats-table"></div>
+              </div>
+            </div>
+          </div>
+        </details>
 
         <details style="margin-top: 24px;">
           <summary>注意事項</summary>
@@ -266,7 +350,13 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/js-md5@0.8.3/build/md5.min.js"></script>
-  <script src="./hash-engines.js"></script>
-  <script src="./script.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="./js/hash-engines.js"></script>
+  <script src="./js/utils.js"></script>
+  <script src="./js/statistics.js"></script>
+  <script src="./js/canvas-2d.js"></script>
+  <script src="./js/canvas-3d.js"></script>
+  <script src="./js/interactions.js"></script>
+  <script src="./js/app.js"></script>
 </body>
 </html>

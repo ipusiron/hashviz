@@ -39,6 +39,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 8px 12px 32px; }
 
 .row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: end; margin: 12px 0; }
 .row.compact { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; }
+.row.compact.right { justify-content: flex-end; }
 
 @media (max-width: 700px) { 
   .row { grid-template-columns: 1fr; }
@@ -110,6 +111,11 @@ canvas {
   border: 1px solid var(--border); 
   border-radius: 12px; 
   background: #fafafa; 
+  display: block;
+}
+
+/* canvas-containerに含まれていないcanvasの通常表示を保護 */
+canvas:not(.canvas-container canvas) {
   display: block;
 }
 
@@ -236,4 +242,212 @@ canvas {
   margin: 0;
   line-height: 1.5;
   color: var(--text);
+}
+
+/* 3D切り替えスイッチ */
+.switch-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--accent);
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+.switch-label {
+  font-size: 14px;
+  color: var(--text);
+  user-select: none;
+}
+
+.canvas-container {
+  position: relative;
+  width: 400px;
+  height: 400px;
+  margin: 12px auto;
+  display: inline-block;
+}
+
+.canvas-3d {
+  width: 400px;
+  height: 400px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fafafa;
+  display: none;
+}
+
+.canvas-container canvas {
+  display: block;
+  width: 400px;
+  height: 400px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.canvas-container .canvas-3d {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* 3D表示中は2Dキャンバスを隠す */
+.canvas-container.show-3d canvas {
+  display: none;
+}
+
+.canvas-container.show-3d .canvas-3d {
+  display: block;
+}
+
+/* Statistics Accordion */
+.statistics-accordion {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.statistics-accordion summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  background: #f8f9fa;
+  border-radius: 10px;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+
+.statistics-accordion summary:hover {
+  background: #e9ecef;
+}
+
+.statistics-accordion summary::marker {
+  content: '';
+}
+
+.statistics-accordion summary::before {
+  content: '▶';
+  margin-right: 8px;
+  transition: transform 0.2s ease;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.statistics-accordion[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.statistics-accordion[open] summary {
+  border-bottom: 1px solid var(--border);
+  border-radius: 10px 10px 0 0;
+}
+
+.statistics-content {
+  padding: 16px;
+}
+
+.statistics-content h4 {
+  margin: 0 0 12px 0;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Statistics Table */
+.stats-table {
+  background: #f8f9fa;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.stats-table-content {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.stats-table-content td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #e9ecef;
+  vertical-align: top;
+}
+
+.stats-table-content td:first-child {
+  background: #ffffff;
+  font-weight: 600;
+  color: var(--muted);
+  width: 120px;
+}
+
+.stats-table-content td:last-child {
+  background: #ffffff;
+  color: var(--text);
+  text-align: right;
+}
+
+.stats-table-content tr:last-child td {
+  border-bottom: none;
+}
+
+.stats-table-content tr:hover td {
+  background: #f0f0f0;
+}
+
+@media (max-width: 700px) {
+  .statistics-content .grid-2 {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .stats-table-content td:first-child {
+    width: 100px;
+    font-size: 12px;
+  }
 }
