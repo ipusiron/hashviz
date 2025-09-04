@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="description" content="教育用ハッシュ関数ビジュアライザー - アバランシェ効果と衝突デモ" />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';" />
+  <title>HashViz - 教育用ハッシュ関数ビジュアライザー</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>HashViz</h1>
+    <p class="subtitle">教育用ハッシュ関数ビジュアライザー</p>
+    <p class="description">暗号学的ハッシュ関数の性質を視覚的に体験できる教育ツールです。<br>
+    アバランシェ効果の観察、ハッシュ値のビット可視化、既知の衝突例の確認ができます。</p>
+  </header>
+
+  <main>
+    <nav class="tabs" role="tablist" aria-label="HashViz Tabs">
+      <button class="tab is-active" data-tab="avalanche" role="tab" aria-selected="true">アバランシェ</button>
+      <button class="tab" data-tab="viz" role="tab" aria-selected="false">可視化</button>
+      <button class="tab" data-tab="collision" role="tab" aria-selected="false">衝突デモ</button>
+      <button class="tab" data-tab="glossary" role="tab" aria-selected="false">用語集</button>
+    </nav>
+
+    <!-- Avalanche -->
+    <section id="panel-avalanche" class="panel is-active" role="tabpanel" aria-labelledby="tab-avalanche">
+      <div class="card">
+        <h2>アバランシェ効果デモ</h2>
+        <div class="row">
+          <label>入力
+            <input id="ava-input" type="text" placeholder="任意の文字列（例：hello world）" maxlength="10000" autocomplete="off" />
+          </label>
+          <label>アルゴリズム
+            <select id="ava-algo">
+              <option>SHA-1</option>
+              <option>SHA-256</option>
+              <option>SHA-512</option>
+              <option>MD5</option>
+            </select>
+          </label>
+        </div>
+        <div class="row compact">
+          <label class="label-with-help">バイト位置<span class="help-icon">?</span>
+            <span class="tooltip">入力文字列のどのバイト（文字）を変更するか指定します。0から始まります。例: "hello"なら0=h, 1=e, 2=l...</span>
+            <input id="ava-byte" type="number" min="0" max="9999" value="0" autocomplete="off" class="short" />
+          </label>
+          <label class="label-with-help">ビット位置<span class="help-icon">?</span>
+            <span class="tooltip">選択したバイトのどのビットを反転するか指定します（0-7）。0が最下位ビット(LSB)、7が最上位ビット(MSB)です。</span>
+            <input id="ava-bit" type="number" min="0" max="7" value="0" autocomplete="off" class="short" />
+          </label>
+        </div>
+        <button id="ava-run" class="btn">計算する</button>
+
+        <div class="grid-2">
+          <div>
+            <h3>元の入力</h3>
+            <pre id="ava-hex-a" class="mono"></pre>
+            <canvas id="ava-canvas-a" width="400" height="400" aria-label="Original digest grid"></canvas>
+          </div>
+          <div>
+            <h3>1ビット反転後</h3>
+            <pre id="ava-hex-b" class="mono"></pre>
+            <canvas id="ava-canvas-b" width="400" height="400" aria-label="Flipped digest grid"></canvas>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <span>相違ビット数: <strong id="ava-diff-count">-</strong></span>
+          <span>相違率: <strong id="ava-diff-rate">-</strong></span>
+        </div>
+        <p class="hint">※ MD5/SHA-1 は安全でないため、実運用では使用しないでください。</p>
+      </div>
+    </section>
+
+    <!-- Visualization -->
+    <section id="panel-viz" class="panel" role="tabpanel" aria-labelledby="tab-viz">
+      <div class="card">
+        <h2>ハッシュ値可視化</h2>
+        <div class="row">
+          <label>入力
+            <input id="viz-input" type="text" placeholder="任意の文字列（例：hello world）" maxlength="10000" autocomplete="off" />
+          </label>
+          <div style="display: flex; gap: 12px; align-items: end;">
+            <label>アルゴリズム
+              <select id="viz-algo">
+                <option>SHA-1</option>
+                <option>SHA-256</option>
+                <option>SHA-512</option>
+                <option>MD5</option>
+              </select>
+            </label>
+            <button id="viz-run" class="btn">ハッシュ化</button>
+          </div>
+        </div>
+        <pre id="viz-hex" class="mono"></pre>
+        <canvas id="viz-canvas" width="400" height="400" aria-label="Digest grid"></canvas>
+      </div>
+    </section>
+
+    <!-- Collision Demo -->
+    <section id="panel-collision" class="panel" role="tabpanel" aria-labelledby="tab-collision">
+      <div class="card">
+        <h2>衝突デモ</h2>
+
+        <div class="row">
+          <label>サンプル選択
+            <select id="col-sample"></select>
+          </label>
+          <button id="col-load" class="btn">サンプルを読み込む</button>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <h3>入力A</h3>
+            <textarea id="col-a" rows="6" class="mono" placeholder="Base64 もしくは Hex" maxlength="100000" autocomplete="off"></textarea>
+            <div id="col-a-display" class="diff-display mono" style="display: none;"></div>
+          </div>
+          <div>
+            <h3>入力B</h3>
+            <textarea id="col-b" rows="6" class="mono" placeholder="Base64 もしくは Hex" maxlength="100000" autocomplete="off"></textarea>
+            <div id="col-b-display" class="diff-display mono" style="display: none;"></div>
+          </div>
+        </div>
+
+        <div id="col-diff-info" class="diff-info" style="display: none;">
+          <h4>入力値の差異</h4>
+          <p id="col-explanation"></p>
+          <div id="col-differences"></div>
+        </div>
+
+        <div class="row compact">
+          <div class="setting-display">
+            <label>入力フォーマット</label>
+            <span id="col-encoding-display" class="setting-value">hex</span>
+          </div>
+          <div class="setting-display">
+            <label>アルゴリズム</label>
+            <span id="col-algo-display" class="setting-value">SHA-1</span>
+          </div>
+        </div>
+        
+        <!-- Hidden inputs for compatibility -->
+        <input type="hidden" id="col-encoding" value="hex">
+        <input type="hidden" id="col-algo" value="SHA-1">
+
+        <button id="col-run" class="btn" style="margin: 12px 0;">計算</button>
+
+        <div class="grid-2">
+          <div>
+            <h3>ハッシュA</h3>
+            <pre id="col-hex-a" class="mono"></pre>
+            <canvas id="col-canvas-a" width="400" height="400"></canvas>
+          </div>
+          <div>
+            <h3>ハッシュB</h3>
+            <pre id="col-hex-b" class="mono"></pre>
+            <canvas id="col-canvas-b" width="400" height="400"></canvas>
+          </div>
+        </div>
+
+        <div class="badge-row">
+          <span id="col-result" class="badge">未計算</span>
+        </div>
+
+        <details style="margin-top: 24px;">
+          <summary>注意事項</summary>
+          <ul>
+            <li>MD5 / SHA-1 は衝突攻撃が現実的で、署名・検証用途には不適切です。</li>
+            <li>教育目的の既知サンプルのみを対象とします。</li>
+          </ul>
+        </details>
+      </div>
+    </section>
+
+    <!-- Glossary -->
+    <section id="panel-glossary" class="panel" role="tabpanel" aria-labelledby="tab-glossary">
+      <div class="card">
+        <h2>暗号学用語集</h2>
+        <p>ハッシュ関数と暗号学に関する重要な用語を解説します。</p>
+        
+        <div class="glossary-list">
+          <div class="glossary-item">
+            <h3>ハッシュ関数 (Hash Function)</h3>
+            <p>任意の長さの入力データを固定長のハッシュ値に変換する一方向関数。「指紋」のような役割を持ち、データの完整性確認や高速検索に使用される。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>アバランシェ効果 (Avalanche Effect)</h3>
+            <p>入力の1ビットを変更すると、出力のビットの約半数が変化する性質。優れたハッシュ関数の重要な特徴で、わずかな入力変化が予測困難な大きな出力変化を引き起こす。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>ハッシュ値 (Hash Value / Digest)</h3>
+            <p>ハッシュ関数によって計算された固定長の出力値。元のデータの「デジタル指紋」として機能し、データの同一性確認に使用される。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>衝突 (Collision)</h3>
+            <p>異なる入力データが同じハッシュ値を生成する現象。理論的には避けられないが、暗号学的に安全なハッシュ関数では実際に見つけることが計算上困難。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>衝突耐性 (Collision Resistance)</h3>
+            <p>同じハッシュ値を持つ2つの異なる入力を見つけることが計算上困難である性質。暗号学的ハッシュ関数の核心的な安全性要件。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>一方向性 (One-way Property)</h3>
+            <p>ハッシュ値から元の入力データを復元することが計算上困難である性質。暗号学的ハッシュ関数の基本的な安全性要件。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>MD5 (Message Digest 5)</h3>
+            <p>128ビット出力の暗号学的ハッシュ関数。1991年に開発されたが、現在は衝突攻撃が発見されており、セキュリティ用途での使用は推奨されない。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>SHA-1 (Secure Hash Algorithm 1)</h3>
+            <p>160ビット出力の暗号学的ハッシュ関数。2017年に実際の衝突が発見され（SHAttered攻撃）、現在は非推奨。SHA-2系列への移行が必要。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>SHA-2 (SHA-256, SHA-512)</h3>
+            <p>現在広く使用されている安全な暗号学的ハッシュ関数群。SHA-256（256ビット出力）とSHA-512（512ビット出力）が代表的。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>SHA-3</h3>
+            <p>2015年にNISTが標準化した最新の暗号学的ハッシュ関数。SHA-2とは異なる内部構造（Keccakスポンジ構造）を採用し、多様性による安全性向上を図る。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>誕生日攻撃 (Birthday Attack)</h3>
+            <p>誕生日のパラドックスを利用した衝突発見手法。nビット出力のハッシュ関数では、約2^(n/2)回の試行で衝突が発見できる理論的な攻撃。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>Wang攻撃</h3>
+            <p>2004年に王小雲らが発表したMD5の衝突攻撃手法。差分攻撃の一種で、特定の差分パターンを持つメッセージペアから衝突を効率的に発見。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>SHAttered攻撃</h3>
+            <p>2017年にGoogleとCWIの研究チームがSHA-1で実証した衝突攻撃。約9京回の計算で実際の衝突を発見し、SHA-1の実用的な脆弱性を証明。</p>
+          </div>
+
+          <div class="glossary-item">
+            <h3>ToyHash16</h3>
+            <p>本ツールで使用する教育用の簡易ハッシュ関数。入力バイトの総和を16ビットで計算。衝突が容易に発見できるため、ハッシュ関数の脆弱性を学習する教材として有効。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer">
+      <p>🔗 GitHubリポジトリ: 
+      <a href="https://github.com/ipusiron/hashviz" target="_blank" rel="noopener noreferrer">ipusiron/hashviz</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/js-md5@0.8.3/build/md5.min.js"></script>
+  <script src="./hash-engines.js"></script>
+  <script src="./script.js"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+{
+  "pairs": [
+    {
+      "id": "md5_wang_collision_real",
+      "algo": "MD5",
+      "label": "MD5 Wang衝突攻撃（教育用模擬例）",
+      "encoding": "utf8",
+      "a": "dummy_md5_collision_sample_A_for_educational_purpose_only",
+      "b": "dummy_md5_collision_sample_B_for_educational_purpose_only",
+      "differences": [
+        {"pos": 25, "a": "A", "b": "B", "desc": "ダミーデータの識別文字が異なる"}
+      ],
+      "explanation": "⚠️ 注意：これは教育目的の模擬例です。実際のWang衝突（2004年）は極めて複雑な条件下でのみ成立し、特殊な初期状態や複数ブロック構造が必要です。現実のMD5衝突攻撃は数時間〜数日の計算を要し、人間には読めないバイナリデータとなります。"
+    },
+    {
+      "id": "md5_flame_collision_demo",
+      "algo": "MD5", 
+      "label": "MD5 Flameマルウェア衝突（模擬例）",
+      "encoding": "utf8",
+      "a": "dummy_flame_malware_certificate_A_educational_demo",
+      "b": "dummy_flame_malware_certificate_B_educational_demo", 
+      "differences": [
+        {"pos": 33, "a": "A", "b": "B", "desc": "ダミーデータの識別文字が異なる"}
+      ],
+      "explanation": "注意：これは教育目的の模擬例です。実際のFlameマルウェアは複雑なMD5衝突を利用して偽造証明書を作成しましたが、同じハッシュ値にはなりません。攻撃手法の理解のためのデモです。"
+    },
+    {
+      "id": "sha1_collision_demo",
+      "algo": "SHA-1",
+      "label": "SHA-1 衝突例（教育用デモ）",
+      "encoding": "utf8",
+      "a": "dummy_shattered_pdf_document_A_educational_demo",
+      "b": "dummy_shattered_pdf_document_B_educational_demo",
+      "differences": [
+        {"pos": 30, "a": "A", "b": "B", "desc": "ダミーデータの識別文字が異なる"}
+      ],
+      "explanation": "⚠️ 教育目的のSHA-1衝突デモ。実際のSHAttered攻撃（2017年）は6,500年相当のCPU時間と膨大な計算リソースを必要とし、結果のPDFファイルは数百KBになります。Google・CWIの研究チームによる実例は高度に専門的で、一般的なツールでは再現不可能です。"
+    },
+    {
+      "id": "toy16_collision_demo_1",
+      "algo": "ToyHash16",
+      "label": "ToyHash16 Collision (sum mod 65536)",
+      "encoding": "hex",
+      "a": "4142",
+      "b": "83",
+      "differences": [
+        {"pos": 0, "a": "4142", "b": "83", "desc": "完全に異なる入力値"}
+      ],
+      "explanation": "教育用ハッシュ関数ToyHash16。入力バイト値の合計 mod 65536 で計算。'AB'(0x41+0x42=131) と 0x83(131) が同じ値になる例。"
+    },
+    {
+      "id": "toy16_collision_demo_2",
+      "algo": "ToyHash16",
+      "label": "ToyHash16 Collision (ABC vs single byte)",
+      "encoding": "hex", 
+      "a": "414243",
+      "b": "c6",
+      "differences": [
+        {"pos": 0, "a": "414243", "b": "c6", "desc": "3バイト vs 1バイトの異なる長さ"}
+      ],
+      "explanation": "ToyHash16の別例。'ABC'(0x41+0x42+0x43=198) と 0xc6(198) が同じ合計値になることで衝突が発生。"
+    }
+  ]
+}
