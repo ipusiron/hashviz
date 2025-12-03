@@ -1,11 +1,41 @@
 <!--
 ---
-title: HashViz
-category: cryptography
-difficulty: 1
-description: Educational hash explorer with bit-level visualization, avalanche effect demo, and historical collision samples.
-tags: [hash, visualization, collision, avalanche, cryptography, education]
-demo: https://ipusiron.github.io/hashviz/
+id: day056
+slug: hashviz
+
+title: "HashViz"
+
+subtitle_ja: "教育用ハッシュ関数ビジュアライザー"
+subtitle_en: "Educational Hash Function Visualizer"
+
+description_ja: "ビット単位の可視化、アバランシェ効果のデモ、衝突例を体験できる教育用ハッシュ関数探索ツール。2D/3D表示に対応し、MD5・SHA-1・SHA-256・SHA-512をサポート。"
+description_en: "Educational hash function explorer with bit-level visualization, avalanche effect demo, and collision samples. Supports 2D/3D display and MD5, SHA-1, SHA-256, SHA-512 algorithms."
+
+category_ja:
+  - 現代暗号
+  - ハッシュ関数
+category_en:
+  - Modern Cryptography
+  - Hash Function
+
+difficulty: 3
+
+tags:
+  - hash
+  - visualization
+  - collision
+  - avalanche
+  - cryptography
+  - education
+  - 3D
+  - MD5
+  - SHA-1
+  - SHA-256
+
+repo_url: "https://github.com/ipusiron/hashviz"
+demo_url: "https://ipusiron.github.io/hashviz/"
+
+hub: true
 ---
 -->
 
