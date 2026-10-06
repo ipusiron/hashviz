@@ -66,6 +66,12 @@ test('文言に書いた数は、計算部と一次資料に合う（衝突の�
   assert.deepEqual(diffs('md5-textcoll'), [21]);
   const [ta, tb] = bytes('md5-textcoll');
   assert.deepEqual([String.fromCharCode(ta[21]), String.fromCharCode(tb[21])], ['A', 'E']);
+  // 128文字の組も22文字目だけが違い、2ブロック目のあとで内部状態がそろう（後ろに足しても保たれる）
+  assert.deepEqual(diffs('md5-textcoll128'), [21]);
+  assert.match(ja['note.md5-textcoll128'], /22文字目のAとEだけ.*2ブロック目のあとで内部状態がそろう/);
+  assert.match(en['note.md5-textcoll128'], /22nd character.*after the second block/);
+  const [ua, ub] = bytes('md5-textcoll128');
+  assert.deepEqual([C.chainCompare('MD5', ua, ub).converge, C.chainCompare('MD5', ...bytes('md5-textcoll')).converge], [2, 0]);
   assert.match(ja['note.sha1-shattered'], /192バイトまでは同じ.*62バイト/);
   assert.equal(diffs('sha1-shattered')[0], 192);
   assert.equal(diffs('sha1-shattered').length, 62);

@@ -100,5 +100,111 @@
     }
   }
 
-  globalThis.HashVizDraw = { grid, cubes };
+  // 目盛りの上限を 1・2・5 × 10^k に切り上げる
+  function niceMax(x) {
+    const p = 10 ** Math.floor(Math.log10(Math.max(1, x)));
+    for (const m of [1, 2, 5, 10]) if (m * p >= x) return m * p;
+    return 10 * p;
+  }
+
+  // 誕生日攻撃の累積分布。理論の曲線 1−exp(−k(k−1)/2^(n+1))、実測の階段、期待値の縦の点線を描く。
+  // labels は { x, y, theory, measured, expected, fmt }（fmt は数の書き方）
+  function cdfChart(canvas, samples, n, labels) {
+    // 狭い画面では縦を高めにする
+    const { ctx, w, h } = fit(canvas, (canvas.clientWidth || 320) < 480 ? 4 / 3 : 16 / 9);
+    const c = { bg: css('--card'), axis: css('--muted'), grid: css('--border'), theory: css('--accent'), measured: css('--bit-diff'), text: css('--text') };
+    ctx.font = '12px "Segoe UI", system-ui, sans-serif';
+    // 凡例の置き場所（幅が足りなければ次の行へ）。縦軸の名前は、1行目の右に入るときだけ書く
+    const items = [[c.theory, labels.theory, false], [c.measured, labels.measured, false], [c.axis, labels.expected, true]];
+    const legend = [];
+    let lx = 52;
+    let ly = 14;
+    for (const [color, text, dash] of items) {
+      const width = 28 + ctx.measureText(text).width;
+      if (lx > 52 && lx + width > w - 14) {
+        lx = 52;
+        ly += 18;
+      }
+      legend.push({ color, text, dash, x: lx, y: ly });
+      lx += width + 18;
+    }
+    const yLabel = ly === 14 && lx + ctx.measureText(labels.y).width <= w - 14;
+    const pad = { l: 52, r: 14, t: ly + 20, b: 40 };
+    const expected = C.birthdayExpected(n);
+    const xmax = niceMax(Math.max(expected * 3, ...samples));
+    const X = (k) => pad.l + (k / xmax) * (w - pad.l - pad.r);
+    const Y = (p) => h - pad.b - p * (h - pad.t - pad.b);
+    ctx.fillStyle = c.bg;
+    ctx.fillRect(0, 0, w, h);
+    ctx.lineWidth = 1;
+    // 目盛り
+    ctx.strokeStyle = c.grid;
+    ctx.fillStyle = c.axis;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (const p of [0, 0.5, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(pad.l, Y(p));
+      ctx.lineTo(w - pad.r, Y(p));
+      ctx.stroke();
+      ctx.fillText(String(p), pad.l - 6, Y(p));
+    }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (const k of [0, xmax / 2, xmax]) ctx.fillText(labels.fmt(k), Math.min(Math.max(X(k), pad.l + 10), w - pad.r - 20), h - pad.b + 6);
+    ctx.fillText(labels.x, (pad.l + w - pad.r) / 2, h - 16);
+    // 期待値
+    ctx.strokeStyle = c.axis;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(X(expected), Y(0));
+    ctx.lineTo(X(expected), Y(1));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 理論の曲線
+    ctx.strokeStyle = c.theory;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const k = (xmax * i) / 200;
+      const y = Y(C.birthdayCdf(k, n));
+      if (i) ctx.lineTo(X(k), y);
+      else ctx.moveTo(X(k), y);
+    }
+    ctx.stroke();
+    // 実測の階段
+    const s = [...samples].sort((p, q) => p - q);
+    ctx.strokeStyle = c.measured;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(X(0), Y(0));
+    s.forEach((k, i) => {
+      ctx.lineTo(X(k), Y(i / s.length));
+      ctx.lineTo(X(k), Y((i + 1) / s.length));
+    });
+    ctx.lineTo(X(xmax), Y(1));
+    ctx.stroke();
+    // 凡例と縦軸の名前
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    for (const { color, text, dash, x, y } of legend) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash(dash ? [4, 4] : []);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 22, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = c.text;
+      ctx.fillText(text, x + 28, y);
+    }
+    if (yLabel) {
+      ctx.textAlign = 'right';
+      ctx.fillStyle = c.axis;
+      ctx.fillText(labels.y, w - pad.r, 14);
+    }
+  }
+
+  globalThis.HashVizDraw = { grid, cubes, cdfChart };
 })();

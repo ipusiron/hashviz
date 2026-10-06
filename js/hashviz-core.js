@@ -100,6 +100,143 @@
     return md5StateBytes(chain[chain.length - 1]);
   };
 
+  // ===== SHA-1（FIPS 180-4） =====
+  // ダイジェストの計算は Web Crypto で行う。ここではブロックごとの内部状態を見せるために自前で持つ
+  const SHA1_IV = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
+
+  // MD5 と同じ伸ばし方だが、元のビット長はビッグエンディアンで書く
+  function sha1Pad(bytes) {
+    const len = bytes.length;
+    const total = Math.ceil((len + 9) / 64) * 64;
+    const out = new Uint8Array(total);
+    out.set(bytes);
+    out[len] = 0x80;
+    const view = new DataView(out.buffer);
+    view.setUint32(total - 8, Math.floor((len * 8) / 2 ** 32), false);
+    view.setUint32(total - 4, (len * 8) >>> 0, false);
+    return out;
+  }
+
+  // 64バイトの1ブロックを圧縮する。state は [H0, H1, H2, H3, H4]
+  function sha1Compress(state, block, offset = 0) {
+    const w = new Array(80);
+    for (let i = 0; i < 16; i++) {
+      const o = offset + i * 4;
+      w[i] = ((block[o] << 24) | (block[o + 1] << 16) | (block[o + 2] << 8) | block[o + 3]) >>> 0;
+    }
+    for (let i = 16; i < 80; i++) {
+      const x = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16];
+      w[i] = ((x << 1) | (x >>> 31)) >>> 0;
+    }
+    let [a, b, c, d, e] = state;
+    for (let i = 0; i < 80; i++) {
+      let f;
+      let k;
+      if (i < 20) {
+        f = (b & c) | (~b & d);
+        k = 0x5a827999;
+      } else if (i < 40) {
+        f = b ^ c ^ d;
+        k = 0x6ed9eba1;
+      } else if (i < 60) {
+        f = (b & c) | (b & d) | (c & d);
+        k = 0x8f1bbcdc;
+      } else {
+        f = b ^ c ^ d;
+        k = 0xca62c1d6;
+      }
+      const t = ((((a << 5) | (a >>> 27)) >>> 0) + (f >>> 0) + e + k + w[i]) >>> 0;
+      e = d;
+      d = c;
+      c = ((b << 30) | (b >>> 2)) >>> 0;
+      b = a;
+      a = t;
+    }
+    return [a, b, c, d, e].map((x, i) => (state[i] + x) >>> 0);
+  }
+
+  function sha1Chain(bytes) {
+    const p = sha1Pad(bytes);
+    const states = [SHA1_IV.slice()];
+    for (let o = 0; o < p.length; o += 64) states.push(sha1Compress(states[states.length - 1], p, o));
+    return states;
+  }
+
+  // 内部状態をダイジェストのバイト列にする（各語をビッグエンディアンで）
+  function sha1StateBytes(state) {
+    const out = new Uint8Array(20);
+    state.forEach((w, i) => {
+      for (let j = 0; j < 4; j++) out[i * 4 + j] = (w >>> (24 - 8 * j)) & 0xff;
+    });
+    return out;
+  }
+
+  const sha1 = (bytes) => {
+    const chain = sha1Chain(bytes);
+    return sha1StateBytes(chain[chain.length - 1]);
+  };
+
+  // ===== ブロックごとの内部状態の比べ方（MD5・SHA-1） =====
+  const CHAINS = {
+    MD5: { pad: md5Pad, chain: md5Chain, bytes: md5StateBytes },
+    'SHA-1': { pad: sha1Pad, chain: sha1Chain, bytes: sha1StateBytes }
+  };
+  const CHAIN_ALGOS = Object.keys(CHAINS);
+
+  const concatBytes = (...parts) => {
+    const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+    let o = 0;
+    for (const p of parts) {
+      out.set(p, o);
+      o += p.length;
+    }
+    return out;
+  };
+
+  // 2つの入力の前（prefix）か後ろ（suffix）に、同じバイト列を足す。none なら元のまま
+  function extendPair(a, b, extra, where) {
+    if (where === 'suffix') return [concatBytes(a, extra), concatBytes(b, extra)];
+    if (where === 'prefix') return [concatBytes(extra, a), concatBytes(extra, b)];
+    if (where === 'none') return [a, b];
+    throw new Error(`unknown position: ${where}`);
+  }
+
+  // パディングしたメッセージを1ブロックずつ圧縮し、各ブロックのあとの内部状態を A・B で並べる。
+  // suffixSafe は「後ろに何を足しても衝突が保たれる」こと（同じ長さで、メッセージの中のブロックの区切りで内部状態がそろい、
+  // そのあとのメッセージが同じ）。converge はそのブロックの番号（1始まり）
+  function chainCompare(algo, a, b) {
+    const c = CHAINS[algo];
+    if (!c) throw new Error(`no chain for ${algo}`);
+    const [pa, pb] = [c.pad(a), c.pad(b)];
+    const [sa, sb] = [c.chain(a), c.chain(b)];
+    const hex = (st) => toHex(c.bytes(st));
+    const same = (i) => i < sa.length && i < sb.length && hex(sa[i]) === hex(sb[i]);
+    const blocks = Math.max(sa.length, sb.length) - 1;
+    const rows = [{ index: 0, stateA: hex(sa[0]), stateB: hex(sb[0]), same: true, inputDiffers: false, padding: false }];
+    for (let i = 1; i <= blocks; i++) {
+      const from = (i - 1) * 64;
+      let differs = pa.length !== pb.length;
+      for (let k = from; k < from + 64 && !differs; k++) if (pa[k] !== pb[k]) differs = true;
+      rows.push({
+        index: i, from, to: from + 63, inputDiffers: differs, padding: from + 64 > Math.min(a.length, b.length),
+        stateA: i < sa.length ? hex(sa[i]) : null, stateB: i < sb.length ? hex(sb[i]) : null, same: same(i)
+      });
+    }
+    let converge = 0;
+    if (a.length === b.length) {
+      for (let j = 1; j * 64 <= a.length; j++) {
+        if (!same(j)) continue;
+        let rest = true;
+        for (let k = j * 64; k < a.length && rest; k++) if (a[k] !== b[k]) rest = false;
+        if (rest) {
+          converge = j;
+          break;
+        }
+      }
+    }
+    return { algo, rows, blocks, finalSame: same(blocks), suffixSafe: converge > 0, converge, words: algo === 'MD5' ? 4 : 5 };
+  }
+
   // 教育用の弱いハッシュ。バイトの和を 65536 で割った余りを2バイト（上位・下位）で返す
   function toyHash16(bytes) {
     let s = 0;
@@ -426,6 +563,17 @@
       ]
     },
     {
+      id: 'md5-textcoll128', algo: 'MD5', format: 'text',
+      a: 'TEXTCOLLBYfGiJUETHQ4hAcKSMd5zYpgqf1YRDhkmxHkhPWptrkoyz28wnI9V0aHmSZaAAAA()(()()(()((((((()((()((()())))()(()))))())(())))))()(()',
+      b: 'TEXTCOLLBYfGiJUETHQ4hEcKSMd5zYpgqf1YRDhkmxHkhPWptrkoyz28wnI9V0aHmSZaAAAA()(()()(()((((((()((()((()())))()(()))))())(())))))()(()',
+      sources: [
+        { label: 'corkami/collisions: examples/free (lisp-1.txt / lisp-2.txt)',
+          url: 'https://github.com/corkami/collisions' },
+        { label: 'Project HashClash (M. Stevens, MIT License): textcoll',
+          url: 'https://github.com/cr-marcstevens/hashclash' }
+      ]
+    },
+    {
       id: 'sha1-shattered', algo: 'SHA-1', format: 'hex',
       a: [
         '255044462d312e330a25e2e3cfd30a0a0a312030206f626a0a3c3c2f57696474682032203020522f4865696768742033203020522f547970652034203020522f',
@@ -472,9 +620,71 @@
     return out;
   }
 
+  // ===== 誕生日攻撃 =====
+  const BIRTHDAY_BITS = [8, 12, 16, 20, 24, 28, 32, 36];
+  const BIRTHDAY_ALGOS = ['MD5', 'SHA-1', 'SHA-256', 'SHA-512'];
+  // アルゴリズム全体での誕生日攻撃の目安（2^(n/2)）と、知られている衝突攻撃の計算量（2の何乗か）。
+  // MD5 は同一プレフィックス衝突で約2^16回の圧縮関数、SHA-1 は SHAttered の約2^63.1回（どちらも Stevens ら 2017 の論文による）
+  const BIRTHDAY_LIMITS = [
+    { algo: 'MD5', bits: 128, birthday: 64, attack: 16 },
+    { algo: 'SHA-1', bits: 160, birthday: 80, attack: 63.1 },
+    { algo: 'SHA-256', bits: 256, birthday: 128, attack: null },
+    { algo: 'SHA-512', bits: 512, birthday: 256, attack: null }
+  ];
+
+  // ダイジェストの先頭 n ビット（1〜48）を、上位から読んだ数にする
+  function truncateBits(bytes, n) {
+    if (!Number.isInteger(n) || n < 1 || n > 48 || n > bytes.length * 8) throw new Error(`bad bit count: ${n}`);
+    let v = 0;
+    const full = Math.floor(n / 8);
+    for (let i = 0; i < full; i++) v = v * 256 + bytes[i];
+    const rest = n % 8;
+    if (rest) v = v * 2 ** rest + (bytes[full] >> (8 - rest));
+    return v;
+  }
+
+  // 最初の衝突までの試行回数の期待値 √(π/2·2^n)
+  const birthdayExpected = (n) => Math.sqrt((Math.PI / 2) * 2 ** n);
+  // k 回までに衝突が見つかる確率の近似 1 − exp(−k(k−1)/2^(n+1))
+  const birthdayCdf = (k, n) => 1 - Math.exp(-(k * (k - 1)) / 2 ** (n + 1));
+  // 試す文。種と番号で決まる（同じ種なら同じ結果になる）
+  const birthdayMessage = (seed, i) => `${seed}-${i}`;
+
+  // 先頭 n ビットが同じになる2つの文を探す。birthdayMessage(seed, 0)、(seed, 1)、… の順にハッシュし、
+  // batch 個ごとに onProgress(tries) を呼び、pause() を待つ（画面がイベントを処理できるように）。shouldStop() が true なら null を返す
+  async function birthdaySearch({ algo, n, seed, batch = 512, onProgress, shouldStop, pause }) {
+    if (!BIRTHDAY_ALGOS.includes(algo)) throw new Error(`unknown algorithm: ${algo}`);
+    const seen = new Map();
+    for (let i = 0; ; i += batch) {
+      if (shouldStop && shouldStop()) return null;
+      const msgs = Array.from({ length: batch }, (_, k) => birthdayMessage(seed, i + k));
+      const ds = await Promise.all(msgs.map((m) => digest(algo, utf8(m))));
+      for (let k = 0; k < batch; k++) {
+        const v = truncateBits(ds[k], n);
+        const prev = seen.get(v);
+        if (prev !== undefined) {
+          return { tries: i + k + 1, value: v, a: birthdayMessage(seed, prev), b: msgs[k], indexA: prev, indexB: i + k };
+        }
+        seen.set(v, i + k);
+      }
+      if (onProgress) onProgress(i + batch);
+      if (pause) await pause();
+    }
+  }
+
+  // 試行回数の並びのまとめ（平均・中央値・最小・最大と、理論の期待値との比）
+  function birthdaySummary(samples, n) {
+    const s = [...samples].sort((p, q) => p - q);
+    const mean = s.reduce((x, y) => x + y, 0) / s.length;
+    const mid = s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+    return { count: s.length, mean, median: mid, min: s[0], max: s[s.length - 1], expected: birthdayExpected(n), ratio: mean / birthdayExpected(n) };
+  }
+
   globalThis.HashVizCore = {
     ALGOS, BITS, FORMATS, MAX_BYTES, SAMPLES,
     md5, md5Pad, md5Compress, md5Chain, md5StateBytes, toyHash16, digest, compareAll,
+    sha1, sha1Pad, sha1Compress, sha1Chain, sha1StateBytes, CHAIN_ALGOS, concatBytes, extendPair, chainCompare,
+    BIRTHDAY_BITS, BIRTHDAY_ALGOS, BIRTHDAY_LIMITS, truncateBits, birthdayExpected, birthdayCdf, birthdayMessage, birthdaySearch, birthdaySummary,
     utf8, decodeUtf8, parseHex, parseBase64, parseInput,
     toHex, formatHex, toBinary, bytesToBits, diffBits, byteDiff,
     parseIndex, flipBit, byteOwner, binomialRange, avalancheVerdict, digestStats,
