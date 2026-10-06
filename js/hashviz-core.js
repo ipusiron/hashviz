@@ -651,8 +651,8 @@
   const birthdayMessage = (seed, i) => `${seed}-${i}`;
 
   // 先頭 n ビットが同じになる2つの文を探す。birthdayMessage(seed, 0)、(seed, 1)、… の順にハッシュし、
-  // batch 個ごとに onProgress(tries) を呼ぶ。shouldStop() が true なら null を返す
-  async function birthdaySearch({ algo, n, seed, batch = 512, onProgress, shouldStop }) {
+  // batch 個ごとに onProgress(tries) を呼び、pause() を待つ（画面がイベントを処理できるように）。shouldStop() が true なら null を返す
+  async function birthdaySearch({ algo, n, seed, batch = 512, onProgress, shouldStop, pause }) {
     if (!BIRTHDAY_ALGOS.includes(algo)) throw new Error(`unknown algorithm: ${algo}`);
     const seen = new Map();
     for (let i = 0; ; i += batch) {
@@ -668,6 +668,7 @@
         seen.set(v, i + k);
       }
       if (onProgress) onProgress(i + batch);
+      if (pause) await pause();
     }
   }
 

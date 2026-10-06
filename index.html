@@ -37,6 +37,8 @@
       data-i18n="tab.viz">可視化</button>
     <button type="button" class="tab-btn" role="tab" id="tab-collision" data-tab="collision" aria-controls="panel-collision" aria-selected="false"
       tabindex="-1" data-i18n="tab.collision">衝突</button>
+    <button type="button" class="tab-btn" role="tab" id="tab-birthday" data-tab="birthday" aria-controls="panel-birthday" aria-selected="false"
+      tabindex="-1" data-i18n="tab.birthday">誕生日攻撃</button>
     <button type="button" class="tab-btn" role="tab" id="tab-glossary" data-tab="glossary" aria-controls="panel-glossary" aria-selected="false"
       tabindex="-1" data-i18n="tab.glossary">用語集</button>
   </nav>
@@ -302,7 +304,114 @@
           </div>
           <p class="hint" data-i18n="col.allNote">本物の衝突の組でも、ほかのアルゴリズムでは違うダイジェストになります。衝突は、アルゴリズムごとに狙って作られたものです。</p>
           <p class="msg warn" data-i18n="col.caution">MD5とSHA-1は衝突を作れるので、電子署名や改ざんの検知に使ってはいけません。</p>
+
+          <h3 data-i18n="ext.title">同じデータを足す（Merkle–Damgård構造）</h3>
+          <p class="hint" data-i18n="ext.lead">2つの入力の前か後ろに同じ文字列を足して、衝突が保たれるかを確かめます。MD5とSHA-1では、メッセージを64バイトずつ圧縮していくときの内部状態（IHV）を、ブロックごとに並べます。</p>
+          <div class="form-grid">
+            <div class="field">
+              <label for="ext-where" data-i18n="label.extWhere">足す位置</label>
+              <select id="ext-where" class="select">
+                <option value="none" data-i18n="opt.extNone">足さない</option>
+                <option value="suffix" data-i18n="opt.extSuffix" selected>後ろに足す</option>
+                <option value="prefix" data-i18n="opt.extPrefix">前に足す</option>
+              </select>
+            </div>
+            <div class="field span-2">
+              <label for="ext-text" data-i18n="label.extText">足す文字列（UTF-8）</label>
+              <input id="ext-text" class="text-input mono" type="text" value="hello" maxlength="1000" spellcheck="false" autocomplete="off">
+            </div>
+          </div>
+          <p id="ext-verdict" class="badge"></p>
+          <p id="ext-orig" class="note"></p>
+          <div id="ext-table" class="table-wrap">
+            <table class="ihv-table">
+              <thead>
+                <tr><th scope="col" data-i18n="ext.colBlock">ブロック</th><th scope="col" data-i18n="ext.colA">入力Aの内部状態</th><th scope="col" data-i18n="ext.colB">入力Bの内部状態</th>
+                  <th scope="col" data-i18n="ext.colResult">比べた結果</th></tr>
+              </thead>
+              <tbody id="ext-ihv"></tbody>
+            </table>
+          </div>
+          <p id="ext-none" class="hint" data-i18n="ext.noChain">内部状態の表示は、MD5とSHA-1だけです。</p>
         </div>
+      </div>
+    </section>
+
+    <!-- ===== 誕生日攻撃 ===== -->
+    <section id="panel-birthday" class="panel" role="tabpanel" aria-labelledby="tab-birthday" hidden>
+      <div class="card">
+        <h2 data-i18n="bd.title">誕生日攻撃</h2>
+        <p class="lead" data-i18n="bd.lead">ダイジェストの先頭nビットだけを比べると、nビットのハッシュとして扱えます。違う文を順にハッシュしていくと、およそ√(π/2)・2^(n/2)回で、先頭nビットが同じになる2つの文が見つかります（誕生日のパラドックス）。<strong>2^n回よりずっと少ない</strong>ことを確かめてください。</p>
+        <div class="form-grid">
+          <div class="field">
+            <label for="bd-algo" data-i18n="label.algo">アルゴリズム</label>
+            <select id="bd-algo" class="select">
+              <option value="MD5">MD5</option>
+              <option value="SHA-1">SHA-1</option>
+              <option value="SHA-256" selected>SHA-256</option>
+              <option value="SHA-512">SHA-512</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="bd-bits" data-i18n="label.bdBits">比べるビット数（n）</label>
+            <select id="bd-bits" class="select">
+              <option value="8" data-i18n="opt.bits" data-i18n-vars="n:8">8ビット</option>
+              <option value="12" data-i18n="opt.bits" data-i18n-vars="n:12">12ビット</option>
+              <option value="16" data-i18n="opt.bits" data-i18n-vars="n:16">16ビット</option>
+              <option value="20" data-i18n="opt.bits" data-i18n-vars="n:20">20ビット</option>
+              <option value="24" data-i18n="opt.bits" data-i18n-vars="n:24" selected>24ビット</option>
+              <option value="28" data-i18n="opt.bits" data-i18n-vars="n:28">28ビット</option>
+              <option value="32" data-i18n="opt.bits" data-i18n-vars="n:32">32ビット</option>
+              <option value="36" data-i18n="opt.bits" data-i18n-vars="n:36">36ビット</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="bd-trials" data-i18n="label.bdTrials">試す回数</label>
+            <select id="bd-trials" class="select">
+              <option value="1" data-i18n="opt.trials" data-i18n-vars="n:1">1回</option>
+              <option value="10" data-i18n="opt.trials" data-i18n-vars="n:10" selected>10回</option>
+              <option value="30" data-i18n="opt.trials" data-i18n-vars="n:30">30回</option>
+              <option value="100" data-i18n="opt.trials" data-i18n-vars="n:100">100回</option>
+            </select>
+          </div>
+        </div>
+        <p id="bd-estimate" class="hint"></p>
+        <p class="hint" data-i18n="bd.messages">文は「乱数の種-番号」の形（例：3fa9c2e10-0、3fa9c2e10-1、…）で、試行ごとに種を変えます。</p>
+        <div class="actions">
+          <button type="button" id="bd-run" class="btn" data-i18n="btn.bdRun">探す</button>
+          <button type="button" id="bd-stop" class="btn ghost" data-i18n="btn.bdStop" disabled>止める</button>
+        </div>
+        <p id="bd-progress" class="note"></p>
+        <div id="bd-status" class="status" role="status" aria-live="polite"></div>
+        <div id="bd-result" hidden>
+          <h3 data-i18n="bd.pairTitle">見つかった組（最後の試行）</h3>
+          <p id="bd-pair-note" class="note"></p>
+          <div class="table-wrap">
+            <table class="pair-table">
+              <thead><tr><th scope="col" data-i18n="bd.colMessage">文</th><th scope="col" id="bd-col-digest"></th></tr></thead>
+              <tbody id="bd-pair"></tbody>
+            </table>
+          </div>
+          <h3 data-i18n="bd.distTitle">試行回数の分布</h3>
+          <p id="bd-summary" class="metric"></p>
+          <canvas id="bd-chart" class="chart" role="img" width="640" height="360"></canvas>
+          <p class="hint" data-i18n="bd.chartHint">曲線が理論の累積分布1−exp(−k(k−1)/2^(n+1))、階段状の線が実測、縦の点線が期待値です。</p>
+          <div id="bd-stats" class="table-wrap"></div>
+        </div>
+        <h3 data-i18n="bd.limitsTitle">アルゴリズム全体では</h3>
+        <div class="table-wrap">
+          <table class="all-table">
+            <thead>
+              <tr><th scope="col" data-i18n="bd.colAlgo">アルゴリズム</th><th scope="col" data-i18n="bd.colBits">ビット数</th><th scope="col" data-i18n="bd.colBirthday">誕生日攻撃の目安</th>
+                <th scope="col" data-i18n="bd.colAttack">知られている衝突攻撃</th></tr>
+            </thead>
+            <tbody id="bd-limits"></tbody>
+          </table>
+        </div>
+        <p class="hint" data-i18n="bd.limitsNote">
+          nビットのハッシュの衝突は、誕生日攻撃でおよそ2^(n/2)回の計算で見つかります。これより少ない計算で衝突を作る方法が見つかると、そのハッシュは「破られた」と言われます。
+          MD5は同一プレフィックスの衝突を約2^16回の圧縮関数で作れ、SHA-1はSHAtteredが約2^63.1回で作りました（どちらもStevensらの2017年の論文による）。
+        </p>
       </div>
     </section>
 

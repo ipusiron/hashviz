@@ -415,7 +415,9 @@ h1 {
 /* ========== 結果 ========== */
 .flip-table,
 .stats-table,
-.all-table {
+.all-table,
+.ihv-table,
+.pair-table {
   border-collapse: collapse;
   min-width: 100%;
 }
@@ -425,7 +427,11 @@ h1 {
 .stats-table th,
 .stats-table td,
 .all-table th,
-.all-table td {
+.all-table td,
+.ihv-table th,
+.ihv-table td,
+.pair-table th,
+.pair-table td {
   padding: 6px 10px;
   border: 1px solid var(--border);
   text-align: left;
@@ -434,7 +440,52 @@ h1 {
 
 .flip-table thead th,
 .stats-table thead th,
-.all-table thead th { background: var(--surface); }
+.all-table thead th,
+.ihv-table thead th,
+.pair-table thead th { background: var(--surface); }
+
+/* 内部状態とダイジェストは折り返さない（表の枠の中で横に送る） */
+.ihv-table td.mono,
+.pair-table td.mono,
+.pair-table th.mono {
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.ihv-table tbody th {
+  min-width: 10em;
+  font-weight: 600;
+}
+
+.ihv-table thead th,
+.pair-table thead th { white-space: nowrap; }
+
+.ihv-table td.omitted {
+  color: var(--muted);
+  text-align: center;
+}
+
+.tag {
+  display: inline-block;
+  margin: 2px 0 0 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--info-bg);
+  color: var(--info-text);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  margin: 10px auto 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
 
 .stats-table caption {
   padding: 0 0 6px;

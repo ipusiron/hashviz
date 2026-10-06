@@ -102,14 +102,15 @@
   const bitCount = (g) => (g.figs[0].bits ? g.figs[0].bits.length : 0);
   const visibleGroup = (g) => !$(`panel-${g.tab}`).hidden;
 
+  // 図の名前（aria-label）は、タブが隠れていても今の言語で付け直す。描くのは見えているときだけ
   function redraw(g) {
-    if (!visibleGroup(g)) return;
     for (const f of g.figs) {
       f.canvas.classList.toggle('is-3d', g.threeD);
       if (!f.bits) continue;
+      f.canvas.setAttribute('aria-label', t(g.threeD ? 'grid.label3d' : 'grid.label', { name: t(f.name), algo: f.algo, n: f.bits.length }));
+      if (!visibleGroup(g)) continue;
       if (g.threeD) D.cubes(f.canvas, f.bits, { kind: f.kind, marks: g.marks, yaw: g.yaw, pitch: g.pitch });
       else D.grid(f.canvas, f.bits, { kind: f.kind, marks: g.marks, cursor: g.focused === f ? g.cursor : -1 });
-      f.canvas.setAttribute('aria-label', t(g.threeD ? 'grid.label3d' : 'grid.label', { name: t(f.name), algo: f.algo, n: f.bits.length }));
     }
   }
 
@@ -272,12 +273,14 @@
     requestAnimationFrame(() => {
       resizeQueued = false;
       GROUPS.forEach(redraw);
+      drawChart();
     });
   });
   for (const g of GROUPS) g.figs.forEach((f) => resizeObserver.observe(f.canvas.parentElement));
+  resizeObserver.observe($('bd-chart').parentElement);
 
   // ===== タブ（WAI-ARIA のタブ。矢印キー・Home・End で移る） =====
-  const TABS = ['avalanche', 'viz', 'collision', 'glossary'];
+  const TABS = ['avalanche', 'viz', 'collision', 'birthday', 'glossary'];
   let current = 'avalanche';
   function selectTab(name, focus = false) {
     current = name;
@@ -293,6 +296,7 @@
       redraw(g);
       animate(g);
     }
+    drawChart();
   }
   for (const k of TABS) $(`tab-${k}`).addEventListener('click', () => selectTab(k));
   $('tab-avalanche').parentElement.addEventListener('keydown', (e) => {
@@ -539,6 +543,8 @@
       return tr;
     });
     $('col-all').replaceChildren(...rows);
+    lastCol = { a: a.bytes, b: b.bytes, algo, identical, origSame: ha === hb };
+    renderExt();
     return undefined;
   }
   $('col-sample').addEventListener('change', renderSampleNote);
@@ -546,12 +552,240 @@
   for (const id of ['col-a', 'col-b']) $(id).addEventListener('input', renderCol);
   for (const id of ['col-format', 'col-algo']) $(id).addEventListener('change', renderCol);
 
+  // ===== 同じデータを足す（Merkle–Damgård 構造） =====
+  let lastCol = null;
+  let extSeq = 0;
+
+  // 内部状態の16進を語（MD5 は4語、SHA-1 は5語）に分けて書き、other と違う語に印を付ける
+  function stateInto(node, hex, other, words) {
+    if (!hex) {
+      node.textContent = '-';
+      return;
+    }
+    const parts = [];
+    for (let i = 0; i < words; i++) {
+      const w = hex.slice(i * 8, i * 8 + 8);
+      if (i) parts.push(document.createTextNode(' '));
+      parts.push(other && other.slice(i * 8, i * 8 + 8) !== w ? el('mark', 'chg', w) : document.createTextNode(w));
+    }
+    node.replaceChildren(...parts);
+  }
+
+  function ihvRow(row, words) {
+    const tr = el('tr');
+    const th = el('th', '', row.index ? t('ext.block', { i: row.index, from: row.from, to: row.to }) : t('ext.iv'));
+    th.scope = 'row';
+    if (row.inputDiffers) th.append(el('span', 'tag', t('ext.tagDiff')));
+    if (row.padding) th.append(el('span', 'tag', t('ext.tagPad')));
+    const ca = el('td', 'mono');
+    const cb = el('td', 'mono');
+    stateInto(ca, row.stateA, row.stateB, words);
+    stateInto(cb, row.stateB, row.stateA, words);
+    tr.append(th, ca, cb, el('td', row.same ? 'ok-text' : '', t(row.same ? 'ext.sameShort' : 'ext.diffShort')));
+    return tr;
+  }
+
+  function omittedRow(n) {
+    const tr = el('tr');
+    const td = el('td', 'omitted', t('ext.omitted', { n }));
+    td.colSpan = 4;
+    tr.append(td);
+    return tr;
+  }
+
+  async function renderExt() {
+    const seq = ++extSeq;
+    if (!lastCol) return;
+    const { a, b, algo, identical, origSame } = lastCol;
+    const where = $('ext-where').value;
+    const extra = C.utf8($('ext-text').value);
+    const added = where !== 'none' && extra.length > 0;
+    const [ea, eb] = C.extendPair(a, b, extra, where);
+    const r = await digestPair(algo, ea, eb);
+    if (seq !== extSeq || !r.ok) return;
+    const same = C.toHex(r.value[0]) === C.toHex(r.value[1]);
+    const v = $('ext-verdict');
+    if (identical) {
+      v.className = 'badge info';
+      v.textContent = t('col.bytesSame');
+    } else {
+      v.className = `badge ${same ? 'ok' : 'ng'}`;
+      // 何も足していないときは、元の組の判定と同じ書き方にする
+      v.textContent = added ? t(same ? 'ext.same' : 'ext.different', { algo }) : `${algo}${t('ui.colon')}${t(same ? 'col.same' : 'col.different')}`;
+    }
+    const chain = C.CHAIN_ALGOS.includes(algo) && !identical;
+    $('ext-table').hidden = !chain;
+    $('ext-none').hidden = C.CHAIN_ALGOS.includes(algo);
+    const notes = [];
+    if (!identical && !origSame) notes.push(t('ext.origNone', { algo }));
+    else if (!identical && algo === 'ToyHash16') notes.push(t('ext.toyNote'));
+    if (chain && origSame) {
+      const o = C.chainCompare(algo, a, b);
+      if (o.suffixSafe) notes.push(t('ext.origSafe', { j: o.converge }));
+      else notes.push(t('ext.origPadding'));
+    }
+    if (chain) {
+      const cmp = C.chainCompare(algo, ea, eb);
+      const rows = cmp.rows.length > 17 ? [...cmp.rows.slice(0, 9), null, ...cmp.rows.slice(-4)] : cmp.rows;
+      $('ext-ihv').replaceChildren(...rows.map((row) => (row ? ihvRow(row, cmp.words) : omittedRow(cmp.rows.length - 13))));
+    } else {
+      $('ext-ihv').replaceChildren();
+    }
+    if (where === 'prefix' && extra.length && chain && origSame) notes.push(t('ext.prefixNote'));
+    $('ext-orig').textContent = notes.join(t('ui.sentenceSep'));
+    $('ext-orig').hidden = !notes.length;
+  }
+  $('ext-where').addEventListener('change', renderExt);
+  $('ext-text').addEventListener('input', renderExt);
+
+  // ===== 誕生日攻撃 =====
+  const bd = { running: false, stop: false, samples: [], last: null, n: 24, algo: 'SHA-256', progress: null, status: [] };
+  const fmtNum = (x) => Math.round(x).toLocaleString(I.lang === 'ja' ? 'ja-JP' : 'en-US');
+
+  function renderBdEstimate() {
+    const n = Number($('bd-bits').value);
+    const trials = Number($('bd-trials').value);
+    const per = C.birthdayExpected(n);
+    $('bd-estimate').textContent = t('bd.estimate', { per: fmtNum(per), trials, total: fmtNum(per * trials) });
+  }
+
+  function renderBdLimits() {
+    $('bd-limits').replaceChildren(...C.BIRTHDAY_LIMITS.map((x) => {
+      const tr = el('tr');
+      const th = el('th', 'mono', x.algo);
+      th.scope = 'row';
+      tr.append(th, el('td', '', String(x.bits)), el('td', '', t('bd.pow', { e: x.birthday })),
+        el('td', '', x.attack === null ? t('bd.attackNone') : t('bd.pow', { e: x.attack })));
+      return tr;
+    }));
+  }
+
+  function renderBdProgress() {
+    $('bd-progress').textContent = bd.progress ? t('bd.progress', { ...bd.progress, tries: fmtNum(bd.progress.tries) }) : '';
+  }
+
+  // グラフの名前は今の言語で付け直す。描くのは見えているときだけ
+  function drawChart() {
+    if (!bd.samples.length) return;
+    $('bd-chart').setAttribute('aria-label', t('bd.chartLabel', { n: bd.n, count: bd.samples.length }));
+    if ($('panel-birthday').hidden || $('bd-result').hidden) return;
+    D.cdfChart($('bd-chart'), bd.samples, bd.n, {
+      x: t('bd.chartX'), y: t('bd.chartY'), theory: t('bd.legendTheory'), measured: t('bd.legendMeasured'), expected: t('bd.legendExpected'), fmt: fmtNum
+    });
+  }
+
+  function bdStatsTable(s) {
+    const table = el('table', 'stats-table');
+    const tbody = el('tbody');
+    for (const [key, value] of [['bd.count', s.count], ['bd.mean', s.mean], ['bd.median', s.median], ['bd.min', s.min], ['bd.max', s.max],
+      ['bd.expected', s.expected]]) {
+      const tr = el('tr');
+      const th = el('th', '', t(key));
+      th.scope = 'row';
+      tr.append(th, el('td', 'mono', fmtNum(value)));
+      tbody.append(tr);
+    }
+    table.append(tbody);
+    $('bd-stats').replaceChildren(table);
+  }
+
+  async function renderBd() {
+    if (!bd.samples.length || !bd.last) {
+      $('bd-result').hidden = true;
+      // 隠すときは前の結果を消す（言語を切り替えたあとに、前の言語の文が残らないように）
+      for (const id of ['bd-pair-note', 'bd-col-digest', 'bd-summary']) $(id).textContent = '';
+      for (const id of ['bd-pair', 'bd-stats']) $(id).replaceChildren();
+      $('bd-chart').removeAttribute('aria-label');
+      return;
+    }
+    const r = bd.last;
+    const k = bd.n / 4;
+    const [da, db] = await Promise.all([C.digest(bd.algo, C.utf8(r.a)), C.digest(bd.algo, C.utf8(r.b))]);
+    const [ha, hb] = [C.toHex(da), C.toHex(db)];
+    $('bd-result').hidden = false;
+    $('bd-pair-note').textContent = t('bd.pairNote', { tries: fmtNum(r.tries), n: bd.n, hex: ha.slice(0, k) });
+    $('bd-col-digest').textContent = t('bd.colDigest', { n: bd.n });
+    $('bd-pair').replaceChildren(...[[r.a, ha], [r.b, hb]].map(([msg, hex]) => {
+      const tr = el('tr');
+      const th = el('th', 'mono', msg);
+      th.scope = 'row';
+      const td = el('td', 'mono hex-cell');
+      td.append(el('mark', 'chg', hex.slice(0, k)), document.createTextNode(hex.slice(k)));
+      tr.append(th, td);
+      return tr;
+    }));
+    const s = C.birthdaySummary(bd.samples, bd.n);
+    $('bd-summary').textContent = t('bd.summary', { mean: fmtNum(s.mean), expected: fmtNum(s.expected), ratio: s.ratio.toFixed(2) });
+    bdStatsTable(s);
+    drawChart();
+  }
+
+  function setBdRunning(on) {
+    bd.running = on;
+    $('bd-run').disabled = on;
+    $('bd-stop').disabled = !on;
+    for (const id of ['bd-algo', 'bd-bits', 'bd-trials']) $(id).disabled = on;
+  }
+
+  // 試行を順に行う。計算は小分けにし、30ms ごとにイベントを処理させる（止めるボタンが効くように）
+  async function runBd() {
+    if (bd.running) return;
+    const algo = $('bd-algo').value;
+    const n = Number($('bd-bits').value);
+    const trials = Number($('bd-trials').value);
+    Object.assign(bd, { stop: false, samples: [], last: null, n, algo, progress: null, status: [] });
+    setBdRunning(true);
+    show('bd-status', []);
+    $('bd-result').hidden = true;
+    const base = C.toHex(crypto.getRandomValues(new Uint8Array(4)));
+    let lastYield = performance.now();
+    let lastPaint = 0;
+    const pause = () => {
+      if (performance.now() - lastYield < 30) return null;
+      lastYield = performance.now();
+      return new Promise((resolve) => setTimeout(resolve, 0));
+    };
+    try {
+      for (let i = 0; i < trials; i++) {
+        const onProgress = (k) => {
+          if (performance.now() - lastPaint < 150) return;
+          lastPaint = performance.now();
+          bd.progress = { trial: i + 1, trials, tries: k };
+          renderBdProgress();
+        };
+        const r = await C.birthdaySearch({ algo, n, seed: `${base}${i}`, batch: 1024, onProgress, shouldStop: () => bd.stop, pause });
+        if (!r) break;
+        bd.samples.push(r.tries);
+        bd.last = r;
+        bd.progress = { trial: i + 1, trials, tries: r.tries };
+        renderBdProgress();
+        await renderBd();
+      }
+      bd.status = [{ key: bd.stop ? 'bd.stopped' : 'bd.done', vars: { count: bd.samples.length }, level: 'ok' }];
+    } catch (e) {
+      bd.status = [errorItem({ error: e && e.message === 'nosubtle' ? 'nosubtle' : 'empty' })];
+    } finally {
+      show('bd-status', bd.status);
+      setBdRunning(false);
+    }
+  }
+  $('bd-run').addEventListener('click', runBd);
+  $('bd-stop').addEventListener('click', () => {
+    bd.stop = true;
+  });
+  for (const id of ['bd-bits', 'bd-trials']) $(id).addEventListener('change', renderBdEstimate);
+
   // ===== 言語・テーマ =====
   function renderAll() {
     renderAva();
     renderViz();
     renderSampleNote();
     renderCol();
+    renderBdEstimate();
+    renderBdLimits();
+    renderBdProgress();
+    renderBd();
+    if (!bd.running) show('bd-status', bd.status);
     for (const g of GROUPS) {
       g.syncControls();
       renderMarks(g);
@@ -566,8 +800,14 @@
   $('btn-theme').addEventListener('click', () => {
     Theme.toggle($('btn-theme'));
     GROUPS.forEach(redraw);
+    drawChart();
   });
-  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => GROUPS.forEach(redraw));
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      GROUPS.forEach(redraw);
+      drawChart();
+    });
+  }
 
   // ===== 初期表示 =====
   I.init();

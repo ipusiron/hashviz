@@ -374,8 +374,15 @@ test('誕生日攻撃: n=12 で200回試した平均は、理論の期待値の�
   assert.ok(Math.abs(s.ratio - 1) < 0.1, String(s.ratio));
   const seen = [];
   let calls = 0;
-  const stopped = await C.birthdaySearch({ algo: 'SHA-256', n: 36, seed: 'stop', batch: 64, onProgress: (k) => seen.push(k), shouldStop: () => ++calls > 3 });
+  let pauses = 0;
+  const stopped = await C.birthdaySearch({
+    algo: 'SHA-256', n: 36, seed: 'stop', batch: 64, onProgress: (k) => seen.push(k), shouldStop: () => ++calls > 3,
+    pause: () => {
+      pauses += 1;
+      return pauses % 2 ? null : new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  });
   assert.equal(stopped, null);
-  assert.deepEqual(seen, [64, 128, 192]);
+  assert.deepEqual([seen, pauses], [[64, 128, 192], 3]);
   await assert.rejects(C.birthdaySearch({ algo: 'ToyHash16', n: 8, seed: 'x' }), /unknown algorithm/);
 });
