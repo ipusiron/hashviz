@@ -69,7 +69,7 @@ Try it directly in your browser.
 
 ### Collisions
 
-- Contains six real collision pairs (three for MD5, one for SHA-1, two for ToyHash16), each with its sources
+- Contains seven real collision pairs (four for MD5, one for SHA-1, two for ToyHash16), each with its sources
 - Marks the bytes that differ between the two inputs and shows how many of them differ
 - Tells whether the chosen algorithm gives the same digest (a collision), and lists the result for every other algorithm in a table
 - The inputs are editable, so you can check that changing even one character breaks the collision
@@ -152,14 +152,15 @@ The pairs in the Collisions tab are the data from the papers and their distribut
 |---|---|---|---|---|---|
 | Wang et al.'s collision | MD5 | 128 bytes | 6 | `79054025255fb1a26e4bc422aef54eb4` | Wang, Feng, Lai, Yu (2004), IACR ePrint 2004/199 |
 | Single-block collision | MD5 | 64 bytes | 2 | `008ee33a9d58b51cfeb425b0959121c9` | Stevens (2012), IACR ePrint 2012/040 |
-| Two printable strings | MD5 | 72 bytes | 1 | `faad49866e9498fc1719f5289e7a0269` | Project HashClash (Stevens, MIT License), corkami/collisions |
+| Two printable strings (72 characters) | MD5 | 72 bytes | 1 | `faad49866e9498fc1719f5289e7a0269` | Project HashClash (Stevens, MIT License), corkami/collisions |
+| Two printable strings (128 characters) | MD5 | 128 bytes | 1 | `3e11950f78f3e4da98630fb102307c70` | corkami/collisions (copyright-free example), Project HashClash |
 | First 320 bytes of SHAttered | SHA-1 | 320 bytes | 62 | `f92d74e3874587aaf443d1db961d4e26dde13e9c` | Stevens et al. (2017), IACR ePrint 2017/190 |
 | "AB" and 0x83 | ToyHash16 | 2 bytes and 1 byte | 2 | `0083` | Example of this tool |
 | "ABC" and 0xC6 | ToyHash16 | 3 bytes and 1 byte | 3 | `00c6` | Example of this tool |
 
 - Wang et al.'s pair collides in two blocks (128 bytes) from the standard MD5 initial value. It took about an hour back then; improvements in 2006 brought it to about a minute on an ordinary PC, and today a pair of this kind takes seconds
 - Xie and Feng gave the first single-block example in 2010, and Stevens found this one in 2012 with a different method (about 2^49.8 MD5 compressions)
-- The two printable strings differ only in the 22nd character, `A` and `E`. The collision includes the final padding, so appending the same text to both breaks it
+- Both pairs of printable strings (72 and 128 characters) differ only in the 22nd character, `A` and `E`. The 72-character pair collides only with the final padding included, so appending the same text to both breaks it. The 128-character pair has equal internal states after the second block, so appending keeps the collision
 - SHAttered is the first SHA-1 collision, announced by Google and CWI in 2017. It took about 2^63 SHA-1 computations (about 9.2 quintillion): 6,500 CPU years and 110 GPU years. The two PDFs are identical for the first 192 bytes, and 62 bytes differ within the next 128. Appending the same content after the first 320 bytes keeps the collision
 
 MD5 and SHA-1 use the Merkle–Damgård construction, which updates an internal state one block at a time. If two inputs have the same length and their internal states agree at a block boundary, appending the same data to both keeps the collision. **Collisions can be made for MD5 and SHA-1, so do not use them for digital signatures or tamper detection.**

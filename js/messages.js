@@ -122,6 +122,7 @@
     'sample.md5-wang2004': 'MD5：Wangらの衝突（2004年、128バイト）',
     'sample.md5-stevens2012': 'MD5：1ブロックだけの衝突（Stevens、2012年、64バイト）',
     'sample.md5-textcoll': 'MD5：文字列どうしの衝突（HashClash、72文字）',
+    'sample.md5-textcoll128': 'MD5：文字列どうしの衝突（corkami、128文字）',
     'sample.sha1-shattered': 'SHA-1：SHAtteredの先頭320バイト（2017年）',
     'sample.toy-ab': 'ToyHash16：「AB」と0x83',
     'sample.toy-abc': 'ToyHash16：「ABC」と0xC6',
@@ -130,6 +131,8 @@
     'note.md5-stevens2012': '1ブロック（64バイト）だけで衝突する組で、違うのは2バイトです。2010年にXieとFengが最初の例を示し、2012年にStevensが別の方法で作りました（MD5の圧縮関数を約2^49.8回）。',
     'note.md5-textcoll': '印字できる文字だけでできた、72文字どうしの衝突です（22文字目のAとEだけが違う）。Stevensの「Project HashClash」の例で、'
       + 'corkamiの「collisions」にも入っています。最後のパディングまで含めて衝突しているので、後ろに同じ文字列を足すと崩れます。',
+    'note.md5-textcoll128': '72文字の組と同じ方法（HashClashのtextcoll）で作られた、128文字どうしの衝突です（22文字目のAとEだけが違う）。'
+      + 'corkamiの「collisions」に著作権フリーの例として入っています。2ブロック目のあとで内部状態がそろうので、後ろに同じ文字列を足しても衝突は保たれます。',
     'note.sha1-shattered': '2017年にGoogleとCWIが公表したSHA-1の最初の衝突（SHAttered）の、2つのPDFの先頭320バイトです。'
       + '192バイトまでは同じで、そのあとの128バイトの中の62バイトが違います。計算にはSHA-1を約2^63回（約922京回）、'
       + 'CPUで6,500年分、GPUで110年分を使いました。この後ろに同じ内容を足しても衝突は保たれます。',
@@ -317,6 +320,7 @@
     'sample.md5-wang2004': 'MD5: Wang et al. (2004, 128 bytes)',
     'sample.md5-stevens2012': 'MD5: single-block collision (Stevens, 2012, 64 bytes)',
     'sample.md5-textcoll': 'MD5: two printable strings (HashClash, 72 characters)',
+    'sample.md5-textcoll128': 'MD5: two printable strings (corkami, 128 characters)',
     'sample.sha1-shattered': 'SHA-1: first 320 bytes of SHAttered (2017)',
     'sample.toy-ab': 'ToyHash16: "AB" and 0x83',
     'sample.toy-abc': 'ToyHash16: "ABC" and 0xC6',
@@ -329,6 +333,9 @@
     'note.md5-textcoll': 'Two 72-character strings made only of printable characters (only the 22nd character differs, '
       + 'A and E). It is an example from Stevens\'s Project HashClash and is also in corkami\'s "collisions". '
       + 'The collision includes the final padding, so appending the same text to both breaks it.',
+    'note.md5-textcoll128': 'Two 128-character strings that collide, made the same way as the 72-character pair (HashClash textcoll); '
+      + 'only the 22nd character differs, A and E. It is in corkami\'s "collisions" as a copyright-free example. '
+      + 'The internal states agree after the second block, so appending the same text to both keeps the collision.',
     'note.sha1-shattered': 'The first 320 bytes of the two PDFs of SHAttered, the first SHA-1 collision, '
       + 'announced by Google and CWI in 2017. The first 192 bytes are identical, '
       + 'and 62 bytes differ within the next 128. The attack took about 2^63 SHA-1 computations (about 9.2 quintillion): 6,500 CPU years and 110 GPU years. '

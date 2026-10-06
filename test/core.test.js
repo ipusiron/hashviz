@@ -71,6 +71,7 @@ test('衝突の組: どれも、狙ったアルゴリズムだけで同じダイ
     'md5-wang2004': ['MD5', [128, 128], '79054025255fb1a26e4bc422aef54eb4'],
     'md5-stevens2012': ['MD5', [64, 64], '008ee33a9d58b51cfeb425b0959121c9'],
     'md5-textcoll': ['MD5', [72, 72], 'faad49866e9498fc1719f5289e7a0269'],
+    'md5-textcoll128': ['MD5', [128, 128], '3e11950f78f3e4da98630fb102307c70'],
     'sha1-shattered': ['SHA-1', [320, 320], 'f92d74e3874587aaf443d1db961d4e26dde13e9c'],
     'toy-ab': ['ToyHash16', [2, 1], '0083'],
     'toy-abc': ['ToyHash16', [3, 1], '00c6']
@@ -99,6 +100,10 @@ test('衝突の組の中身: 違うバイトの位置、文字列の組は ASCII
   assert.deepEqual(C.byteDiff(...bytes(get('md5-wang2004'))).positions, [19, 45, 59, 83, 109, 123]);
   assert.deepEqual(C.byteDiff(...bytes(get('md5-stevens2012'))).positions, [35, 55]);
   assert.deepEqual(C.byteDiff(...bytes(get('md5-textcoll'))).positions, [21]);
+  assert.deepEqual(C.byteDiff(...bytes(get('md5-textcoll128'))).positions, [21]);
+  assert.match(get('md5-textcoll128').a, /^[!-~]{128}$/);
+  // 128文字の組は72文字の組と同じ先頭21文字
+  assert.equal(get('md5-textcoll128').a.slice(0, 21), get('md5-textcoll').a.slice(0, 21));
   assert.match(get('md5-textcoll').a, /^[\x21-\x7e]{72}$/);
   const [s1, s2] = bytes(get('sha1-shattered'));
   assert.equal(Buffer.from(s1.slice(0, 8)).toString('latin1'), '%PDF-1.3');
@@ -271,4 +276,106 @@ test('2Dのグリッドの当たり判定: 四隅のマスと、外側', () => {
   // 縦長のキャンバスでは上下に余白ができる
   assert.equal(C.gridCellAt(16, 100, 200, 50, 10), -1);
   assert.equal(C.gridCellAt(16, 100, 200, 1, 51), 0);
+});
+
+// ===== 第2弾: SHA-1 の内部状態・接尾辞の実験・誕生日攻撃 =====
+test('SHA-1: FIPS 180 の例（abc・空・448ビット・100万の a）と、乱数の入力を Node の crypto と比べる', () => {
+  assert.equal(C.toHex(C.sha1(C.utf8('abc'))), 'a9993e364706816aba3e25717850c26c9cd0d89d');
+  assert.equal(C.toHex(C.sha1(C.utf8(''))), 'da39a3ee5e6b4b0d3255bfef95601890afd80709');
+  assert.equal(C.toHex(C.sha1(C.utf8('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq'))), '84983e441c3bd26ebaae4aa1f95129e5e54670f1');
+  assert.equal(C.toHex(C.sha1(new Uint8Array(1000000).fill(0x61))), '34aa973cd4c4daa4f61eeb2bdbad27316534016f');
+  const rand = seeded(9);
+  for (const len of [55, 56, 63, 64, 65, 320, 1000]) {
+    const b = Uint8Array.from({ length: len }, () => rand(256));
+    assert.equal(C.toHex(C.sha1(b)), nodeHash('SHA-1', b), String(len));
+  }
+  // 長さはビッグエンディアンで最後の8バイトに入る（MD5 はリトルエンディアン）
+  const p = C.sha1Pad(C.utf8('abc'));
+  assert.deepEqual([p.length, p[3], p[62], p[63]], [64, 0x80, 0, 24]);
+  assert.deepEqual(C.sha1Chain(C.utf8('abc'))[0], [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0]);
+});
+
+test('ブロックごとの内部状態: どの組も、そろうブロックと、後ろに足しても保たれるかが Node の crypto の結果と合う', async () => {
+  const want = {
+    'md5-wang2004': { blocks: 3, converge: 2, pattern: '= xd =d =p' },
+    'md5-stevens2012': { blocks: 2, converge: 1, pattern: '= =d =p' },
+    'md5-textcoll': { blocks: 2, converge: 0, pattern: '= xd =p' },
+    'md5-textcoll128': { blocks: 3, converge: 2, pattern: '= xd = =p' },
+    'sha1-shattered': { blocks: 6, converge: 5, pattern: '= = = = xd =d =p' }
+  };
+  const chained = C.SAMPLES.filter((s) => C.CHAIN_ALGOS.includes(s.algo));
+  assert.deepEqual(chained.map((s) => s.id), Object.keys(want));
+  for (const s of chained) {
+    const a = C.parseInput(s.a, s.format).bytes;
+    const b = C.parseInput(s.b, s.format).bytes;
+    const r = C.chainCompare(s.algo, a, b);
+    const w = want[s.id];
+    const pattern = r.rows.map((x) => (x.same ? '=' : 'x') + (x.inputDiffers ? 'd' : '') + (x.padding ? 'p' : '')).join(' ');
+    assert.deepEqual([r.blocks, r.converge, r.suffixSafe, r.finalSame, pattern], [w.blocks, w.converge, w.converge > 0, true, w.pattern], s.id);
+    // 最後の内部状態はダイジェストそのもの
+    assert.equal(r.rows[r.blocks].stateA, nodeHash(s.algo, a), s.id);
+    for (const extra of ['hello', '', 'x'.repeat(100)]) {
+      const e = C.utf8(extra);
+      const [sa, sb] = C.extendPair(a, b, e, 'suffix');
+      assert.equal(nodeHash(s.algo, sa) === nodeHash(s.algo, sb), extra === '' || r.suffixSafe, `${s.id} suffix ${extra.length}`);
+      const [pa, pb] = C.extendPair(a, b, e, 'prefix');
+      assert.equal(nodeHash(s.algo, pa) === nodeHash(s.algo, pb), extra === '', `${s.id} prefix ${extra.length}`);
+    }
+  }
+  assert.equal(C.chainCompare('MD5', C.utf8('a'), C.utf8('b')).finalSame, false);
+  assert.equal(C.chainCompare('SHA-1', C.utf8('ab'), C.utf8('abc')).suffixSafe, false);
+  assert.throws(() => C.chainCompare('SHA-256', new Uint8Array(1), new Uint8Array(1)), /no chain/);
+  assert.throws(() => C.extendPair(new Uint8Array(1), new Uint8Array(1), new Uint8Array(1), 'middle'), /unknown position/);
+  assert.deepEqual(C.concatBytes(Uint8Array.of(1), Uint8Array.of(2, 3)), Uint8Array.of(1, 2, 3));
+});
+
+test('誕生日攻撃: 先頭 n ビットの読み方、期待値と累積分布、アルゴリズム全体の目安', () => {
+  const d = Uint8Array.of(0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78);
+  assert.deepEqual([8, 12, 16, 20, 36, 48].map((n) => C.truncateBits(d, n)), [0xab, 0xabc, 0xabcd, 0xabcde, 0xabcdef123, 0xabcdef123456]);
+  assert.throws(() => C.truncateBits(d, 0), /bad bit count/);
+  assert.throws(() => C.truncateBits(d, 49), /bad bit count/);
+  assert.throws(() => C.truncateBits(Uint8Array.of(1), 12), /bad bit count/);
+  assert.ok(Math.abs(C.birthdayExpected(16) - Math.sqrt(Math.PI / 2) * 256) < 1e-9);
+  // 期待値の回数で見つかっている確率は約 1 − e^(−π/4) ≈ 0.544
+  assert.ok(Math.abs(C.birthdayCdf(C.birthdayExpected(32), 32) - (1 - Math.exp(-Math.PI / 4))) < 1e-4);
+  assert.deepEqual([C.birthdayCdf(1, 8), C.birthdayCdf(0, 8)], [0, 0]);
+  assert.deepEqual(C.BIRTHDAY_BITS, [8, 12, 16, 20, 24, 28, 32, 36]);
+  assert.deepEqual(C.BIRTHDAY_ALGOS, ['MD5', 'SHA-1', 'SHA-256', 'SHA-512']);
+  for (const x of C.BIRTHDAY_LIMITS) assert.equal(x.birthday, x.bits / 2, x.algo);
+  assert.deepEqual(C.BIRTHDAY_LIMITS.map((x) => [x.algo, x.attack]), [['MD5', 16], ['SHA-1', 63.1], ['SHA-256', null], ['SHA-512', null]]);
+  const sum = C.birthdaySummary([3, 1, 2, 10], 8);
+  assert.deepEqual([sum.count, sum.mean, sum.median, sum.min, sum.max], [4, 4, 2.5, 1, 10]);
+  assert.equal(sum.ratio, 4 / C.birthdayExpected(8));
+});
+
+test('誕生日攻撃: 見つかった2つの文は先頭 n ビットだけ一致し、同じ種なら同じ結果。n=8 は257回以内', async () => {
+  for (const algo of C.BIRTHDAY_ALGOS) {
+    for (const n of [8, 16, 20]) {
+      const r = await C.birthdaySearch({ algo, n, seed: `t-${algo}-${n}` });
+      assert.notEqual(r.a, r.b);
+      assert.equal(r.a, C.birthdayMessage(`t-${algo}-${n}`, r.indexA));
+      assert.equal(r.b, C.birthdayMessage(`t-${algo}-${n}`, r.indexB));
+      assert.equal(r.tries, r.indexB + 1);
+      const [da, db] = [nodeHash(algo, C.utf8(r.a)), nodeHash(algo, C.utf8(r.b))];
+      assert.equal(da.slice(0, n / 4), db.slice(0, n / 4), `${algo} ${n}`);
+      assert.notEqual(da, db);
+      assert.equal(C.truncateBits(Buffer.from(da, 'hex'), n), r.value);
+      if (n === 8) assert.ok(r.tries <= 257, String(r.tries));
+      const again = await C.birthdaySearch({ algo, n, seed: `t-${algo}-${n}`, batch: 7 });
+      assert.deepEqual([again.a, again.b, again.tries], [r.a, r.b, r.tries]);
+    }
+  }
+});
+
+test('誕生日攻撃: n=12 で200回試した平均は、理論の期待値の±10%に入る。止めれば null、途中で回数を知らせる', async () => {
+  const tries = [];
+  for (let i = 0; i < 200; i++) tries.push((await C.birthdaySearch({ algo: 'MD5', n: 12, seed: `avg${i}` })).tries);
+  const s = C.birthdaySummary(tries, 12);
+  assert.ok(Math.abs(s.ratio - 1) < 0.1, String(s.ratio));
+  const seen = [];
+  let calls = 0;
+  const stopped = await C.birthdaySearch({ algo: 'SHA-256', n: 36, seed: 'stop', batch: 64, onProgress: (k) => seen.push(k), shouldStop: () => ++calls > 3 });
+  assert.equal(stopped, null);
+  assert.deepEqual(seen, [64, 128, 192]);
+  await assert.rejects(C.birthdaySearch({ algo: 'ToyHash16', n: 8, seed: 'x' }), /unknown algorithm/);
 });
