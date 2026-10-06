@@ -28,12 +28,14 @@
 
   const ERRORS = {
     empty: 'err.empty', 'byte-range': 'err.byteRange', 'bit-range': 'err.bitRange', 'hex-odd': 'err.hexOdd', 'hex-char': 'err.hexChar',
-    'b64-char': 'err.b64Char', 'b64-length': 'err.b64Length', 'too-long': 'err.tooLong', nosubtle: 'err.nosubtle'
+    'b64-char': 'err.b64Char', 'b64-length': 'err.b64Length', 'too-long': 'err.tooLong', nosubtle: 'err.nosubtle',
+    'ssh-format': 'err.sshFormat', 'ssh-type': 'err.sshType', 'ssh-base64': 'err.sshBase64', 'ssh-mismatch': 'err.sshMismatch',
+    'ssh-blob': 'err.sshBlob', 'fp-format': 'err.fpFormat'
   };
   // 計算部の失敗（{ error, ... }）を知らせの1行にする。name があれば「入力A：…」の形にする
   function errorItem(r, name) {
     const key = ERRORS[r.error] || 'err.empty';
-    const vars = { max: r.max, digits: r.digits, char: r.char, bytes: r.bytes };
+    const vars = { max: r.max, digits: r.digits, char: r.char, bytes: r.bytes, type: r.type };
     if (!name) return { key, vars, level: 'warn' };
     return { key: 'err.inputLabel', vars: { name: t(name), message: t(key, vars) }, level: 'warn' };
   }
@@ -281,7 +283,7 @@
   resizeObserver.observe($('df-hist').parentElement);
 
   // ===== タブ（WAI-ARIA のタブ。矢印キー・Home・End で移る） =====
-  const TABS = ['avalanche', 'diffusion', 'viz', 'collision', 'birthday', 'glossary'];
+  const TABS = ['avalanche', 'diffusion', 'viz', 'collision', 'birthday', 'fingerprint', 'glossary'];
   let current = 'avalanche';
   function selectTab(name, focus = false) {
     current = name;
@@ -903,6 +905,173 @@
     drawDf();
   }
 
+  // ===== 指紋の絵（randomart・identicon） =====
+  // 例の SSH の公開鍵は、このツールのために作った試験用の鍵（秘密鍵は作ったあとすぐ消した）
+  const FP_SAMPLES = {
+    ssh: ['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPS1Qqfh2X3j5mO+/ylmU0s5tqMK6r+O/Ok7D2L/cDrx hashviz-test-ed25519',
+      ['ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBN57w0hG9/d44C/6KaGtRrq8SqlUAeY6L6TMjA/g00TgEDn0j5Q/',
+        'U8xvTtTgFuU+UFmSoAjsGOkiPNVF/fhFLIY= hashviz-test-ecdsa'].join('')],
+    fp: [C.LOSS_FIG19[0], C.LOSS_FIG19[1]],
+    text: ['hello world', 'hello worle'],
+    hex: ['00', '01'],
+    base64: ['AA==', 'AQ==']
+  };
+  const ART_CELLS = C.ART_W * C.ART_H;
+  let fpSeq = 0;
+  let fpLast = null;
+  const fpSearch = { running: false, result: null, status: [] };
+
+  // SSH の公開鍵では MD5 と SHA-256 だけ（ssh-keygen と同じ）。指紋そのものではハッシュを使わない
+  function syncFpAlgo() {
+    const mode = $('fp-mode').value;
+    const sel = $('fp-algo');
+    for (const opt of sel.options) opt.disabled = mode === 'ssh' && opt.value !== 'MD5' && opt.value !== 'SHA-256';
+    if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled) sel.value = 'SHA-256';
+    sel.disabled = mode === 'fp';
+  }
+
+  // 入力を読み、指紋（ダイジェスト）と絵の枠のラベルを返す。空なら null
+  async function fpRead(text) {
+    if (!text.trim()) return null;
+    const mode = $('fp-mode').value;
+    const algo = $('fp-algo').value;
+    if (mode === 'ssh') {
+      const k = C.parseSshPublicKey(text);
+      if (!k.ok) return k;
+      const fp = await C.sshFingerprint(k.blob, algo === 'MD5' ? 'MD5' : 'SHA-256');
+      return { ok: true, digest: fp.digest, title: `${k.label} ${k.bits}`, fallback: k.label, hashName: C.ART_HASH[algo === 'MD5' ? 'MD5' : 'SHA-256'],
+        display: `${k.bits} ${fp.text} ${k.comment || 'no comment'} (${k.label})` };
+    }
+    if (mode === 'fp') {
+      const r = C.parseFingerprint(text);
+      if (!r.ok) return r;
+      return { ok: true, digest: r.bytes, title: '', fallback: '', hashName: r.hashName, display: C.colonHex(r.bytes) };
+    }
+    const p = C.parseInput(text, mode);
+    if (!p.ok) return p;
+    const d = await C.digest(algo, p.bytes);
+    return { ok: true, digest: d, title: '', fallback: '', hashName: C.ART_HASH[algo], display: `${C.ART_HASH[algo]}:${C.colonHex(d)}` };
+  }
+
+  // 枠つきの絵を書き、other と違うマスに印を付ける
+  function artInto(node, x, other, name) {
+    const lines = C.randomartText(x.digest, x.title, x.hashName, x.fallback).split('\n');
+    const otherRows = other ? C.randomartRows(other.digest) : null;
+    const parts = [document.createTextNode(`${lines[0]}\n`)];
+    lines.slice(1, -1).forEach((line, y) => {
+      parts.push(document.createTextNode('|'));
+      const row = line.slice(1, -1);
+      [...row].forEach((ch, k) => parts.push(otherRows && otherRows[y][k] !== ch ? el('mark', 'chg', ch) : document.createTextNode(ch)));
+      parts.push(document.createTextNode('|\n'));
+    });
+    parts.push(document.createTextNode(lines[lines.length - 1]));
+    node.replaceChildren(...parts);
+    node.setAttribute('aria-label', t('fp.artLabel', { name: t(name) }));
+  }
+
+  function iconInto(canvas, x, name) {
+    D.identicon(canvas, C.identicon(x.digest));
+    canvas.setAttribute('aria-label', t('fp.iconLabel', { name: t(name) }));
+  }
+
+  async function renderFp() {
+    const seq = ++fpSeq;
+    syncFpAlgo();
+    let a;
+    let b;
+    try {
+      [a, b] = await Promise.all([fpRead($('fp-a').value), fpRead($('fp-b').value)]);
+    } catch (e) {
+      a = { ok: false, error: e && e.message === 'nosubtle' ? 'nosubtle' : 'empty' };
+      b = null;
+    }
+    if (seq !== fpSeq) return;
+    const errs = [];
+    if (a && !a.ok) errs.push(errorItem(a, 'label.inputA'));
+    if (b && !b.ok) errs.push(errorItem(b, 'label.inputB'));
+    fpLast = a && a.ok ? { a, b: b && b.ok ? b : null } : null;
+    show('fp-status', errs);
+    $('fp-result').hidden = errs.length > 0 || !a;
+    if ($('fp-result').hidden) return;
+    $('fp-text-a').textContent = a.display;
+    artInto($('fp-art-a'), a, null, 'name.fpA');
+    iconInto($('fp-icon-a'), a, 'name.fpA');
+    $('fp-fig-b').hidden = !b;
+    const v = $('fp-verdict');
+    v.hidden = !b;
+    if (!b) return;
+    $('fp-text-b').textContent = b.display;
+    artInto($('fp-art-b'), b, a, 'name.fpB');
+    iconInto($('fp-icon-b'), b, 'name.fpB');
+    const same = C.randomartSimilarity(a.digest, b.digest);
+    const sameDigest = C.toHex(a.digest) === C.toHex(b.digest);
+    let key = 'fp.different';
+    if (sameDigest) key = 'fp.same';
+    else if (same === ART_CELLS) key = 'fp.sameArt';
+    v.className = `badge ${key === 'fp.different' ? 'ng' : key === 'fp.same' ? 'info' : 'ok'}`;
+    v.textContent = t(key, { same, cells: ART_CELLS });
+  }
+
+  function renderFpSearch() {
+    const r = fpSearch.result;
+    $('fp-search-result').hidden = !r;
+    if (!r) return;
+    $('fp-search-note').textContent = t('fp.searchNote', { tries: fmtNum(r.tries), same: r.best.same, cells: ART_CELLS, index: fmtNum(r.best.index + 1) });
+    const best = { digest: r.best.digest, title: '', fallback: '', hashName: r.target.hashName };
+    artInto($('fp-search-a'), r.target, null, 'name.fpA');
+    artInto($('fp-search-b'), best, r.target, 'name.fpBest');
+    $('fp-search-fp').textContent = C.colonHex(r.best.digest);
+  }
+
+  async function runFpSearch() {
+    if (fpSearch.running) return;
+    if (!fpLast) {
+      fpSearch.status = [{ key: 'fp.searchNeedA', level: 'warn' }];
+      show('fp-search-status', fpSearch.status);
+      return;
+    }
+    const target = fpLast.a;
+    const tries = Number($('fp-tries').value);
+    fpSearch.running = true;
+    $('fp-search').disabled = true;
+    let done = 0;
+    let lastYield = performance.now();
+    const pause = () => {
+      done += 500;
+      if (performance.now() - lastYield < 30) return null;
+      lastYield = performance.now();
+      show('fp-search-status', [{ key: 'fp.searching', vars: { done: fmtNum(Math.min(done, tries)), tries: fmtNum(tries) } }]);
+      return new Promise((resolve) => setTimeout(resolve, 0));
+    };
+    try {
+      const best = await C.similarArtSearch({ target: target.digest, tries, randomBytes: (k) => crypto.getRandomValues(new Uint8Array(k)), pause });
+      fpSearch.result = { target, best, tries };
+      fpSearch.status = [];
+      renderFpSearch();
+    } finally {
+      fpSearch.running = false;
+      $('fp-search').disabled = false;
+      show('fp-search-status', fpSearch.status);
+    }
+  }
+
+  $('fp-mode').addEventListener('change', renderFp);
+  $('fp-algo').addEventListener('change', renderFp);
+  for (const id of ['fp-a', 'fp-b']) $(id).addEventListener('input', renderFp);
+  $('fp-sample').addEventListener('click', () => {
+    const [a, b] = FP_SAMPLES[$('fp-mode').value];
+    $('fp-a').value = a;
+    $('fp-b').value = b;
+    renderFp();
+  });
+  $('fp-loss-load').addEventListener('click', () => {
+    $('fp-mode').value = 'fp';
+    $('fp-a').value = C.LOSS_FIG19[0];
+    $('fp-b').value = C.LOSS_FIG19[Number($('fp-loss').value)];
+    renderFp();
+  });
+  $('fp-search').addEventListener('click', runFpSearch);
+
   // ===== 言語・テーマ =====
   function renderAll() {
     renderAva();
@@ -917,6 +1086,9 @@
     renderDfControls();
     renderDf();
     renderDfStatus();
+    renderFp();
+    renderFpSearch();
+    if (!fpSearch.running) show('fp-search-status', fpSearch.status);
     for (const g of GROUPS) {
       g.syncControls();
       renderMarks(g);

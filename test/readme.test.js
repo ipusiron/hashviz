@@ -13,7 +13,7 @@ const DOCS = {
   ja: {
     file: 'README.md', switcher: '[English](README.en.md) · 日本語', day: '**Day056 - 生成AIで作るセキュリティツール100**',
     h1: '# HashViz - 教育用ハッシュ関数ビジュアライザー', shots: /^assets\/screenshot\d*\.png$/,
-    h2: ['🌐 デモページ', '📸 スクリーンショット', '✨ 機能', '📖 使い方', '🌊 アバランシェ効果', '🌀 拡散の測定', '💥 衝突の組', '🎂 誕生日攻撃', '🔍 可視化のしくみ', '🎮 ToyHash16',
+    h2: ['🌐 デモページ', '📸 スクリーンショット', '✨ 機能', '📖 使い方', '🌊 アバランシェ効果', '🌀 拡散の測定', '💥 衝突の組', '🎂 誕生日攻撃', '🖼️ 指紋の絵', '🔍 可視化のしくみ', '🎮 ToyHash16',
       '🎓 学習の進め方', '🎯 ユースケース', '🔬 技術的な説明', '🔒 セキュリティ', '⚠️ 注意と限界', '📝 開発経緯と実装メモ', '🧪 テスト', '🔗 参考',
       '📁 ディレクトリー構造', '💻 動作環境', '📄 ライセンス', '🛠️ このツールについて'],
     head: { theory: '| アルゴリズム | 出力のビット数 | 平均 | 標準偏差 | 約95%の範囲 |', example: '| アルゴリズム | 元の入力のダイジェスト | 変わったビット |',
@@ -32,6 +32,7 @@ const DOCS = {
     file: 'README.en.md', switcher: 'English · [日本語](README.md)', day: '**Day056 - 100 Security Tools with Generative AI**',
     h1: '# HashViz - Educational Hash Function Visualizer', shots: /^assets\/en\/screenshot\d*\.png$/,
     h2: ['🌐 Demo', '📸 Screenshots', '✨ Features', '📖 How to use', '🌊 Avalanche effect', '🌀 Diffusion', '💥 Collision pairs', '🎂 Birthday attack',
+      '🖼️ Fingerprint art',
       '🔍 How the visualization works',
       '🎮 ToyHash16', '🎓 Learning path', '🎯 Use cases', '🔬 Technical notes', '🔒 Security', '⚠️ Notes and limitations', '📝 Development notes',
       '🧪 Tests', '🔗 References', '📁 Directory structure', '💻 Requirements', '📄 License', '🛠️ About this tool'],
@@ -107,7 +108,7 @@ test('冒頭の形（言語の切り替え・H1・バッジ5種・Dayの行）�
 test('画像: README から参照する画像はすべて実在し300KB以下。assets の PNG は README から参照されているものだけ', () => {
   for (const d of Object.values(DOCS)) {
     const refs = [...d.text.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((m) => m[1]);
-    assert.equal(refs.length, 9, d.file);
+    assert.equal(refs.length, 11, d.file);
     for (const r of refs) {
       assert.match(r, d.shots, r);
       const st = fs.statSync(path.join(ROOT, r));
@@ -305,3 +306,15 @@ test('拡散の測定の表は、種を7に固定した乱数で入力100個を�
   }
 });
 
+test('指紋の絵の節: 図19の11件の指紋は計算部の LOSS_FIG19 と同じ並びで、絵は計算部で描いたものと同じ', () => {
+  for (const d of Object.values(DOCS)) {
+    const body = section(d.text, sec(d, '🖼️'));
+    const blocks = [...body.matchAll(/```text\n([\s\S]*?)\n```/g)].map((m) => m[1]);
+    assert.equal(blocks.length, 2, d.file);
+    assert.deepEqual(blocks[0].split('\n'), C.LOSS_FIG19, d.file);
+    assert.equal(blocks[1], C.randomartText(C.parseFingerprint(C.LOSS_FIG19[0]).bytes), d.file);
+    for (const f of C.LOSS_FIG19) assert.equal(C.randomartText(C.parseFingerprint(f).bytes), blocks[1], f);
+    // Tan らの表の数（一次資料の表3）
+    for (const x of ['6%', '10%', '12%', '14%', '17%', '21%', '35%', '54%']) assert.ok(body.includes(`| ${x} |`), `${d.file} ${x}`);
+  }
+});

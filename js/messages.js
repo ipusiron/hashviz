@@ -249,6 +249,56 @@
     'bd.limitsNote': 'nビットのハッシュの衝突は、誕生日攻撃でおよそ2^(n/2)回の計算で見つかります。これより少ない計算で衝突を作る方法が見つかると、'
       + 'そのハッシュは「破られた」と言われます。MD5は同一プレフィックスの衝突を約2^16回の圧縮関数で作れ、SHA-1はSHAtteredが約2^63.1回で作りました（どちらもStevensらの2017年の論文による）。',
 
+    'tab.fingerprint': '指紋の絵',
+    'fp.title': '指紋の絵（ハッシュの可視化）',
+    'fp.lead': 'ダイジェストを絵にして、人が見比べやすくする方法（ハッシュの可視化）を試します。SSHの公開鍵からは、ssh-keygen -lvと同じ指紋と絵（randomart）を描きます。**絵が違えば鍵は違いますが、絵が同じに見えても同じ鍵とは限りません**。',
+    'label.fpMode': '入力の種類',
+    'opt.fpSsh': 'SSHの公開鍵',
+    'opt.fpFingerprint': '指紋そのもの（16進・SHA256:…）',
+    'label.fpAlgo': 'ハッシュ',
+    'hint.fpAlgo': 'SSHの公開鍵ではMD5かSHA-256（ssh-keygenの既定）を使います。指紋そのものを入れたときは使いません。',
+    'btn.fpSample': '例を入れる',
+    'label.fpB': '入力B（比べるとき）',
+    'fp.figA': '入力Aの指紋と絵',
+    'fp.figB': '入力Bの指紋と絵（Aと違うマスに印）',
+    'fp.artLabel': '{name}のrandomart',
+    'fp.iconLabel': '{name}のidenticon（5×5）',
+    'fp.same': '指紋も絵も同じ',
+    'fp.sameArt': '指紋は違うのに、絵は同じ（{same} / {cells}マスが一致）',
+    'fp.different': '指紋も絵も違う（{same} / {cells}マスが一致）',
+    'fp.artHint': 'randomartは、ダイジェストの各バイトを下位から2ビットずつ読み、17×9のマス目の中央（S）から斜めに1マスずつ動いた跡です。'
+      + '通った回数が多いマスほど、空白・.・o・+・=・*・B・O・X・@・%・&・#・/・^の後ろの記号になり、終点がEです。右は5×5のidenticonです。',
+    'fp.lossTitle': '同じ絵になる別の指紋（Lossら、2009年）',
+    'fp.lossLead': 'Lossらは、盤面の閉路を逆向きにたどるように指紋を並べ替えると、まったく同じ絵になる別の指紋を作れることを示しました。論文の図19の、元の指紋と10件の別の指紋を入れられます。',
+    'label.fpLoss': '図19の別の指紋',
+    'opt.loss': '{n}件目',
+    'btn.fpLoss': '入力欄に入れる',
+    'fp.searchTitle': '似た絵を探す',
+    'fp.searchLead': '入力Aの絵に似た絵を、ランダムなダイジェストで探します（鍵を作り直すと指紋はランダムに変わるので、その代わり）。似ているほど一致するマスが増えます。',
+    'label.fpTries': '試す数',
+    'opt.tries': '{n}個',
+    'btn.fpSearch': '探す',
+    'fp.searching': '探しています（{done} / {tries}個）',
+    'fp.searchNeedA': '入力Aに、読める指紋か鍵か入力を入れてください。',
+    'fp.searchNote': '{tries}個のうち、いちばん似た絵は{same} / {cells}マスが一致しました（{index}個目）。',
+    'fp.searchFigA': '入力Aの絵',
+    'fp.searchFigB': 'いちばん似た絵（違うマスに印）',
+    'fp.researchTitle': '研究でわかっていること',
+    'fp.research1': 'PerrigとSong（1999年）は、意味のない文字列の比較を絵の比較に置き換える「ハッシュの可視化」を提案しました。OpenSSHのrandomart（VisualHostKey）はこれを元にしています。',
+    'fp.research2': 'Lossら（2009年）は、数百万の候補から選んだ最も似た絵でも原画と簡単に見分けられた一方、盤面の閉路を逆向きにたどるように並べ替えると、まったく同じ絵になる別の指紋を作れることを示しました。',
+    'fp.research3': 'Tanら（CHI 2017）の実験では、2^60回の計算ができる攻撃者が作った似た指紋を見逃した人の割合は、文6%、OpenSSHの絵10%、16進21%、ユニコーンの絵54%でした。どの表現も重要な場面には不十分で、'
+      + '人が見比べる代わりに機械で比べる方向を勧めています。',
+    'fp.research4': 'このツールのidenticonは15ビットしか使わないので、およそ227個（√(π/2・2^15)）で同じ模様の組が出る見込みです。見分け用のアバターと、認証に使う指紋は分けて考えます。',
+    'err.sshFormat': 'SSHの公開鍵の行は、種類・Base64・コメントを空白で区切った形です（例：ssh-ed25519 AAAA… user@host）。',
+    'err.sshType': '対応していない鍵の種類です（{type}）。ssh-ed25519・ssh-rsa・ecdsa-sha2-nistp256/384/521を読めます。',
+    'err.sshBase64': '鍵のBase64を読めません。',
+    'err.sshMismatch': '行の先頭の種類（{type}）と、鍵の中の種類が違います。',
+    'err.sshBlob': '鍵の中身が途中で切れているか、形が正しくありません。',
+    'err.fpFormat': '指紋を読めません。16進（コロン区切りも可）か、「SHA256:」のあとにBase64を書いてください。',
+    'name.fpA': '入力A',
+    'name.fpB': '入力B',
+    'name.fpBest': 'いちばん似た絵',
+
     'gl.title': '用語集',
     'gl.lead': 'ハッシュ関数と、このツールで扱う攻撃の用語です。',
     'gl.hash.term': 'ハッシュ関数（hash function）',
@@ -580,6 +630,70 @@
       + 'When a way to make collisions with fewer computations is found, '
       + 'the hash is said to be "broken". Identical-prefix MD5 collisions take about 2^16 compression-function calls, '
       + 'and SHAttered made a SHA-1 collision in about 2^63.1 (both from the 2017 paper by Stevens et al.).',
+
+    'tab.fingerprint': 'Fingerprint art',
+    'fp.title': 'Fingerprint art (hash visualization)',
+    'fp.lead': 'Try turning digests into pictures that people can compare more easily (hash visualization). '
+      + 'From an SSH public key, the same fingerprint and picture (randomart) as ssh-keygen -lv are drawn. '
+      + '**Different pictures mean different keys, but pictures that look the same do not guarantee the same key.**',
+    'label.fpMode': 'Input type',
+    'opt.fpSsh': 'SSH public key',
+    'opt.fpFingerprint': 'Fingerprint itself (hex, SHA256:...)',
+    'label.fpAlgo': 'Hash',
+    'hint.fpAlgo': 'SSH public keys use MD5 or SHA-256 (the ssh-keygen default). Not used when you enter a fingerprint itself.',
+    'btn.fpSample': 'Put in an example',
+    'label.fpB': 'Input B (to compare)',
+    'fp.figA': 'Fingerprint and picture of input A',
+    'fp.figB': 'Fingerprint and picture of input B (cells that differ from A marked)',
+    'fp.artLabel': 'Randomart of {name}',
+    'fp.iconLabel': 'Identicon of {name} (5×5)',
+    'fp.same': 'Same fingerprint and same picture',
+    'fp.sameArt': 'Different fingerprints but the same picture ({same} / {cells} cells match)',
+    'fp.different': 'Different fingerprints and different pictures ({same} / {cells} cells match)',
+    'fp.artHint': 'Randomart is the trail of a walk that starts at the center (S) of a 17×9 grid and moves one cell diagonally for every 2 bits of the digest, '
+      + 'reading each byte from the low bits. The more often a cell is visited, '
+      + 'the later its symbol in the list space . o + = * B O X @ % & # / ^, '
+      + 'and E marks the end. On the right is a 5×5 identicon.',
+    'fp.lossTitle': 'Different fingerprints with the same picture (Loss et al., 2009)',
+    'fp.lossLead': 'Loss et al. showed that reordering a fingerprint so that loops on the board are walked in the opposite direction '
+      + 'gives a different fingerprint with exactly the same picture. '
+      + 'You can enter the original fingerprint and the 10 alternatives from Figure 19 of the paper.',
+    'label.fpLoss': 'Alternative fingerprint from Figure 19',
+    'opt.loss': 'No. {n}',
+    'btn.fpLoss': 'Put into the inputs',
+    'fp.searchTitle': 'Searching for a similar picture',
+    'fp.searchLead': 'Search for pictures similar to that of input A using random digests (regenerating a key changes its fingerprint randomly, '
+      + 'so random digests stand in for new keys). The more similar, the more cells match.',
+    'label.fpTries': 'Tries',
+    'opt.tries': '{n} tries',
+    'btn.fpSearch': 'Search',
+    'fp.searching': 'Searching ({done} / {tries})',
+    'fp.searchNeedA': 'Enter a readable fingerprint, key or input in input A.',
+    'fp.searchNote': 'Of {tries} tries, the most similar picture matched {same} / {cells} cells (try {index}).',
+    'fp.searchFigA': 'Picture of input A',
+    'fp.searchFigB': 'Most similar picture (cells that differ marked)',
+    'fp.researchTitle': 'What research shows',
+    'fp.research1': 'Perrig and Song (1999) proposed hash visualization, '
+      + 'which replaces comparing meaningless strings with comparing pictures. '
+      + 'OpenSSH randomart (VisualHostKey) is based on it.',
+    'fp.research2': 'Loss et al. (2009) found that even the most similar picture chosen from several million candidates was easy to tell from the original, '
+      + 'but that reordering a fingerprint so loops on the board are walked backwards gives a different fingerprint with exactly the same picture.',
+    'fp.research3': 'In the experiment by Tan et al. (CHI 2017), against an attacker able to do 2^60 computations, '
+      + 'participants missed the similar fingerprint 6% of the time with sentences, '
+      + '10% with OpenSSH pictures, 21% with hex and 54% with unicorn pictures. '
+      + 'No representation was good enough for high-risk situations, '
+      + 'and they recommend having machines compare instead of people.',
+    'fp.research4': 'The identicon in this tool uses only 15 bits, so a pair with the same pattern is expected after about 227 (√(π/2·2^15)) identicons. '
+      + 'Avatars for telling things apart and fingerprints for authentication are different things.',
+    'err.sshFormat': 'An SSH public key line has the form "type Base64 comment" (for example ssh-ed25519 AAAA... user@host).',
+    'err.sshType': 'This key type is not supported ({type}). ssh-ed25519, ssh-rsa and ecdsa-sha2-nistp256/384/521 can be read.',
+    'err.sshBase64': 'The Base64 of the key cannot be read.',
+    'err.sshMismatch': 'The type at the start of the line ({type}) differs from the type inside the key.',
+    'err.sshBlob': 'The key data is cut short or malformed.',
+    'err.fpFormat': 'The fingerprint cannot be read. Write hex (colons allowed) or Base64 after "SHA256:".',
+    'name.fpA': 'input A',
+    'name.fpB': 'input B',
+    'name.fpBest': 'the most similar picture',
 
     'gl.title': 'Glossary',
     'gl.lead': 'Terms for hash functions and for the attacks covered by this tool.',

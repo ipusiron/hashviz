@@ -438,3 +438,178 @@ test('拡散の測定: SHA-256 と MD5 は理想に近く、ToyHash16 と1〜4�
   assert.deepEqual([C.DIFF_ALGOS, C.DIFF_ROUNDS, C.DIFF_INPUTS], [['MD5', 'SHA-1', 'SHA-256', 'SHA-512', 'ToyHash16', 'SHA-256-R'],
     [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64], [100, 300, 1000]]);
 });
+
+// ===== 第4弾: 視覚的フィンガープリント（OpenSSH の randomart） =====
+// 試験用の鍵（秘密鍵は作ったあとすぐ消した）と、OpenSSH 8.2p1 の ssh-keygen -lv（-E md5）の出力
+const SSH_FIXTURES = {
+  ed25519: {
+    pub: [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPS1Qqfh2X3j5mO+/ylmU0s5tqMK6r+O/Ok7D2L/cDrx hashviz-test-ed25519"
+    ].join(''),
+    'SHA-256': [
+      "256 SHA256:9Z5cysQ5EqFYy4nTmdWrKRiYl9MPWA4XT4d8/1vLJTk hashviz-test-ed25519 (ED25519)",
+      "+--[ED25519 256]--+",
+      "|        oo+o.    |",
+      "|      .*oXooo    |",
+      "|     o+OO +. o   |",
+      "|    o *.+. +...  |",
+      "|     . +So.o* .o |",
+      "|      . . +* =E +|",
+      "|         .  * .o=|",
+      "|               + |",
+      "|                 |",
+      "+----[SHA256]-----+"
+    ],
+    'MD5': [
+      "256 MD5:75:48:69:05:cc:ab:e1:9a:e3:57:07:76:1a:5c:cf:c0 hashviz-test-ed25519 (ED25519)",
+      "+--[ED25519 256]--+",
+      "|         oo=.    |",
+      "|         .=.E    |",
+      "|         ooo.+   |",
+      "|        ..*.. o  |",
+      "|       .S+ =     |",
+      "|        o o .    |",
+      "|       o . .     |",
+      "|      + .        |",
+      "|     ..o         |",
+      "+------[MD5]------+"
+    ]
+  },
+  rsa: {
+    pub: [
+      "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCrRyVAxQ4UT189g4z8NfkgoekHO+ceTRmZrlidq1bbm5AYuUQ6QqUL+9YgbidrPK6e3mDru0XH2TqH3SHp",
+      "upRlfbc6gdvy55S6iFrEvmROzQqz8C1TVSeBf15ddobk4/PLO5qkFgz2RJIsN4InL7zahPocoKPELUd5NHcQtuZqYSO/rCgqBLm0iBbQxxiLm1rwJPXhs4rx",
+      "FEbtd0ZfCT7Hym7yVpcEcYGIlZgojn6QPzvywbva89V+O10qtwCEqbhPHY2wKNQjvU35vaJkuayL0MZ28YeODCqa/HBc1CNCEj+yxxQBoKOdLFu8a2WA1y51",
+      "Rm340acpwoVQRO0EnlpD hashviz-test-rsa"
+    ].join(''),
+    'SHA-256': [
+      "2048 SHA256:o0twSFW1nxXBSNVrgdTakajl/bfN868pk2nADJxNSVw hashviz-test-rsa (RSA)",
+      "+---[RSA 2048]----+",
+      "|      ...+o+E=Bo.|",
+      "|     .    +..+.*.|",
+      "|    .  . +. + = +|",
+      "|   . .  + .o = = |",
+      "|    o . S+  o . .|",
+      "|     o . .+     o|",
+      "|      o    . o .+|",
+      "|     . .    *  +o|",
+      "|      .    . oo.*|",
+      "+----[SHA256]-----+"
+    ],
+    'MD5': [
+      "2048 MD5:f1:d2:d3:73:78:b3:84:68:50:c9:94:c1:db:2e:f7:f0 hashviz-test-rsa (RSA)",
+      "+---[RSA 2048]----+",
+      "|         +++     |",
+      "|         .=      |",
+      "|        o  o     |",
+      "|         =.o.o   |",
+      "|        S *.= =  |",
+      "|         o..+= o |",
+      "|           o +.  |",
+      "|              E  |",
+      "|                 |",
+      "+------[MD5]------+"
+    ]
+  },
+  ecdsa: {
+    pub: [
+      "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBN57w0hG9/d44C/6KaGtRrq8SqlUAeY6L6TMjA/g00TgEDn0",
+      "j5Q/U8xvTtTgFuU+UFmSoAjsGOkiPNVF/fhFLIY= hashviz-test-ecdsa"
+    ].join(''),
+    'SHA-256': [
+      "256 SHA256:AYbsP+G7gAAg9m8hZHWZNEIZxMWfecjFFXFGAK2tRjg hashviz-test-ecdsa (ECDSA)",
+      "+---[ECDSA 256]---+",
+      "|o. +=BO=o ..+==+ |",
+      "|+ + o+o=.  o .o  |",
+      "|.  + .  + * o    |",
+      "|.   + o  E + .   |",
+      "|.    = .S + .    |",
+      "| . .. +    o     |",
+      "|  . .  o  .      |",
+      "|     ..          |",
+      "|      ..         |",
+      "+----[SHA256]-----+"
+    ],
+    'MD5': [
+      "256 MD5:98:0b:3a:47:33:be:3f:d3:37:bf:42:79:57:3b:a4:3d hashviz-test-ecdsa (ECDSA)",
+      "+---[ECDSA 256]---+",
+      "|                 |",
+      "|                 |",
+      "|                 |",
+      "|       o       ..|",
+      "|    = o S  .  +..|",
+      "|   + + .  o ...E |",
+      "|  o o .. . . .  o|",
+      "|   o .o . +      |",
+      "|    ...o . +o.   |",
+      "+------[MD5]------+"
+    ]
+  }
+};
+
+test('randomart: OpenSSH の ssh-keygen -lv と1文字残らず同じ（ED25519・RSA・ECDSA × SHA256・MD5）', async () => {
+  for (const [name, f] of Object.entries(SSH_FIXTURES)) {
+    const key = C.parseSshPublicKey(f.pub);
+    assert.equal(key.ok, true, name);
+    for (const algo of ['SHA-256', 'MD5']) {
+      const fp = await C.sshFingerprint(key.blob, algo);
+      const got = [`${key.bits} ${fp.text} ${key.comment} (${key.label})`,
+        ...C.randomartText(fp.digest, `${key.label} ${key.bits}`, C.ART_HASH[algo], key.label).split('\n')];
+      assert.deepEqual(got, f[algo], `${name} ${algo}`);
+      assert.equal(C.toHex(fp.digest), nodeHash(algo, key.blob), `${name} ${algo}`);
+    }
+  }
+  assert.deepEqual([C.parseSshPublicKey(SSH_FIXTURES.rsa.pub).bits, C.parseSshPublicKey(SSH_FIXTURES.ecdsa.pub).bits], [2048, 256]);
+  await assert.rejects(C.sshFingerprint(new Uint8Array(1), 'SHA-1'), /unsupported fingerprint/);
+});
+
+test('SSH の公開鍵の読み取り: 形式・種類・Base64・blob の中身の誤りを返す', () => {
+  const [type, b64] = SSH_FIXTURES.ed25519.pub.split(' ');
+  assert.equal(C.parseSshPublicKey(`  ${type}   ${b64}  `).comment, '');
+  assert.deepEqual(C.parseSshPublicKey('ssh-ed25519'), { ok: false, error: 'ssh-format' });
+  assert.deepEqual(C.parseSshPublicKey(`ssh-dss ${b64}`), { ok: false, error: 'ssh-type', type: 'ssh-dss' });
+  assert.deepEqual(C.parseSshPublicKey(`${type} ***`), { ok: false, error: 'ssh-base64' });
+  assert.deepEqual(C.parseSshPublicKey(`ssh-rsa ${SSH_FIXTURES.ed25519.pub.split(' ')[1]}`), { ok: false, error: 'ssh-mismatch', type: 'ssh-rsa' });
+  assert.deepEqual(C.parseSshPublicKey(`${type} ${b64.slice(0, 12)}`), { ok: false, error: 'ssh-blob' });
+});
+
+test('randomart の作り方: 空の入力は中央に S と E が重なる。枠のラベルは中央寄せで、長すぎるときは代わりの名前', () => {
+  const rows = C.randomartRows(new Uint8Array(0));
+  assert.equal(rows.length, 9);
+  assert.equal(rows[4], '        E        ');
+  assert.ok(rows.every((r) => r.length === 17));
+  // 0x00 は左上へ4歩（-1, -1）×4。中央 (8, 4) から (4, 0) へ
+  const one = C.randomartField(Uint8Array.of(0));
+  assert.deepEqual(one.end, [4, 0]);
+  assert.equal(C.randomartText(new Uint8Array(0)).split('\n')[0], '+-----------------+');
+  assert.equal(C.randomartText(new Uint8Array(0), 'ED25519 256', 'SHA256').split('\n')[10], '+----[SHA256]-----+');
+  assert.equal(C.randomartText(new Uint8Array(0), 'ECDSA-SK-CERT 256', '', 'ECDSA-SK-CERT').split('\n')[0], '+-[ECDSA-SK-CERT]-+');
+  assert.equal(C.ART_CHARS, ' .o+=*BOX@%&#/^SE');
+});
+
+test('Loss らの図19: 元の指紋と10件の別の指紋は、どれも同じ絵になる。指紋の読み取り', () => {
+  const art = (f) => C.randomartRows(C.parseFingerprint(f).bytes).join('\n');
+  assert.equal(C.LOSS_FIG19.length, 11);
+  assert.equal(new Set(C.LOSS_FIG19).size, 11);
+  for (const f of C.LOSS_FIG19) assert.equal(art(f), art(C.LOSS_FIG19[0]), f);
+  assert.equal(C.randomartSimilarity(C.parseFingerprint(C.LOSS_FIG19[0]).bytes, C.parseFingerprint(C.LOSS_FIG19[5]).bytes), 153);
+  assert.deepEqual(C.parseFingerprint('MD5:fc:94:B0').bytes, Uint8Array.of(0xfc, 0x94, 0xb0));
+  assert.equal(C.parseFingerprint('MD5:fc:94:b0').hashName, 'MD5');
+  assert.deepEqual(C.parseFingerprint('SHA256:AAEC').bytes, Uint8Array.of(0, 1, 2));
+  assert.deepEqual([C.parseFingerprint('zz').ok, C.parseFingerprint('').ok, C.parseFingerprint('SHA256:').ok], [false, false, false]);
+  assert.equal(C.colonHex(Uint8Array.of(1, 255)), '01:ff');
+});
+
+test('似た絵の探索と identicon: 同じ種なら同じ結果、いちばん似た絵を返す。identicon は左右対称', async () => {
+  const target = C.parseFingerprint(C.LOSS_FIG19[0]).bytes;
+  const a = await C.similarArtSearch({ target, tries: 2000, randomBytes: C.seededBytes(4) });
+  const b = await C.similarArtSearch({ target, tries: 2000, randomBytes: C.seededBytes(4) });
+  assert.deepEqual([a.same, a.index], [b.same, b.index]);
+  assert.equal(C.randomartSimilarity(target, a.digest), a.same);
+  assert.ok(a.same > 100 && a.same < 153, String(a.same));
+  const ic = C.identicon(Uint8Array.of(0b10110011, 0b01010101, 0x01, 0x2c));
+  assert.deepEqual(ic.cells[0], [1, 0, 1, 0, 1]);
+  assert.ok(ic.cells.every((r) => r[0] === r[4] && r[1] === r[3]));
+  assert.equal(ic.hue, 300 % 360);
+  assert.deepEqual([C.FP_ALGOS, C.ART_TRIES], [['MD5', 'SHA-1', 'SHA-256', 'SHA-512'], [1000, 10000, 100000]]);
+});

@@ -14,7 +14,7 @@ HashViz is an educational tool for checking the properties of hash functions as 
 
 In the Collisions tab, you can compute real collision pairs found by researchers right in this page: for MD5, the pair shown by Wang et al. in 2004 (128 bytes), a single-block pair (64 bytes) and two pairs of printable strings (72 and 128 characters); for SHA-1, the first 320 bytes of the two SHAttered PDFs. With the other algorithms, the same pairs give completely different digests. You can also add the same text before or after both inputs and check whether the collision survives, side by side with the internal state after each block.
 
-In the Birthday attack tab, compare only the first n bits of the digest, measure how many messages it takes to find two with the same value, and compare that with the theoretical expectation. In the Diffusion tab, flip the bits of many random inputs one at a time and draw the distribution of differing bits and the SAC matrix (input bit × output bit). You can also reduce the rounds of SHA-256 to watch diffusion spread.
+In the Birthday attack tab, compare only the first n bits of the digest, measure how many messages it takes to find two with the same value, and compare that with the theoretical expectation. In the Diffusion tab, flip the bits of many random inputs one at a time and draw the distribution of differing bits and the SAC matrix (input bit × output bit). You can also reduce the rounds of SHA-256 to watch diffusion spread. In the Fingerprint art tab, draw the same fingerprint picture (randomart) as ssh-keygen from an SSH public key, and try different fingerprints with the same picture and how easily a similar picture can be found.
 
 The aim is to let students and engineers who are starting out in cryptography and security try out, hands-on, properties of hash functions that are hard to picture from text and formulas alone. Nothing is sent over the network.
 
@@ -66,6 +66,14 @@ Try it directly in your browser.
 >
 >*Diffusion (standard SHA-256: the distribution matches the binomial and the SAC matrix is nearly uniform)*
 
+>![Fingerprint art (Figure 19 of Loss et al.: different fingerprints, the same picture)](assets/en/screenshot10.png)
+>
+>*Fingerprint art (Figure 19 of Loss et al.: different fingerprints, the same picture)*
+
+>![Fingerprint art (the picture of a test SSH public key and the most similar picture found among random digests)](assets/en/screenshot11.png)
+>
+>*Fingerprint art (the picture of a test SSH public key and the most similar picture found among random digests)*
+
 ---
 
 ## ✨ Features
@@ -106,6 +114,14 @@ Try it directly in your browser.
 - Compares the number of tries in 1-100 runs with the expected value √(π/2·2^n), and draws their cumulative distribution over the theoretical curve
 - Shows the pair found (the two messages and their digests, with the matching first n bits marked). The Stop button stops the search
 - Lists the birthday bound for the whole digest of each algorithm and the cost of the known collision attacks
+
+### Fingerprint art
+
+- Draws the same fingerprint line and randomart as ssh-keygen -lv from an SSH public key line (ED25519, RSA, ECDSA; SHA256, MD5)
+- Also draws from a fingerprint itself (hex, SHA256:...) or from the hash of text, hex or Base64, next to a 5×5 identicon
+- Compares two inputs, telling whether the fingerprints and the pictures are the same (the number of matching cells), and marks the cells that differ
+- Enters the different fingerprints with the same picture from Figure 19 of Loss et al. (2009)
+- Searches 1,000-100,000 random digests for the most similar picture
 
 ### Glossary
 
@@ -156,6 +172,13 @@ Try it directly in your browser.
 2. Press "Search". If it takes long, press "Stop"
 3. Check that the average number of tries is close to the expected value, and far below 2^n
 4. Check that adding 4 bits to n makes the number of tries about 4 times (2^(4/2)) larger
+
+### The Fingerprint art tab
+
+1. Choose "SSH public key" as the input type and paste a public key line (such as the contents of `~/.ssh/id_ed25519.pub`) into input A. Do not paste a private key
+2. Check that the fingerprint line and the picture are the same as the output of `ssh-keygen -lv -f id_ed25519.pub`
+3. Enter a fingerprint from Figure 19 with "Different fingerprints with the same picture" and check that different fingerprints give the same picture
+4. Use "Searching for a similar picture" to find the most similar picture among random digests and see whether you can tell them apart
 
 ### The Glossary tab
 
@@ -289,6 +312,63 @@ The birthday bound for the whole digest of each algorithm, and the cost of the k
 
 ---
 
+## 🖼️ Fingerprint art
+
+The Fingerprint art tab tries hash visualization: turning digests into pictures that people can compare more easily. It draws the same pictures as OpenSSH randomart (VisualHostKey, `ssh-keygen -lv`), which is based on the proposal by Perrig and Song (1999).
+
+- How it is drawn (the same as fingerprint_randomart in OpenSSH sshkey.c): starting from the center of a 17×9 grid, each byte of the digest is read 2 bits at a time from the low bits, and the walk moves one cell diagonally: right if the first bit is 1 and left if 0, down if the second bit is 1 and up if 0. A move into a wall is ignored in that direction. The number of visits selects a symbol in the order space . o + = * B O X @ % & # / ^, with S at the start and E at the end
+- From an SSH public key line (ssh-ed25519, ssh-rsa, ecdsa-sha2-nistp256/384/521), the same fingerprint line and picture as ssh-keygen -lv are produced. Tests check that they match the output of OpenSSH 8.2p1 character for character for three test keys (ED25519, RSA, ECDSA) with SHA256 and MD5
+- The 5×5 identicon is this tool's own design (the top 15 bits of the digest set the left three columns, which are mirrored, and the hue comes from bytes 3 and 4)
+
+**Different pictures mean different keys, but pictures that look the same do not guarantee the same key.** Loss et al. (2009) showed that reordering a fingerprint so that loops on the board are walked backwards gives a different fingerprint with exactly the same picture. The 11 fingerprints in Figure 19 of the paper (the first is the original) all give the same picture (you can enter them with "Different fingerprints with the same picture" in the tab).
+
+```text
+fc:94:b0:c1:e5:b0:98:7c:58:43:99:76:97:ee:9f:b7
+09:1d:0f:da:c8:fd:e9:40:53:42:99:76:97:ee:9f:b7
+09:1d:27:da:83:dc:fe:94:d0:40:99:76:97:ee:9f:b7
+09:1d:8f:c8:3d:fe:94:80:75:42:99:76:97:ee:9f:b7
+09:1d:9a:dc:3c:fe:94:50:0e:43:69:79:97:ee:9f:b7
+09:1d:a7:9f:0e:34:8c:9c:f5:40:69:79:97:ee:9f:b7
+09:1d:ca:d9:3c:fe:94:50:0e:43:69:79:97:ee:9f:b7
+09:1d:ca:d9:3c:fe:94:50:0e:43:99:76:97:ee:9f:b7
+09:1d:da:9f:0e:84:dc:13:e7:40:99:76:97:ee:9f:b7
+09:1d:e3:9f:0e:84:9c:3d:4d:42:69:79:97:ee:9f:b7
+09:1d:e3:9f:0e:84:c9:3d:4d:42:69:79:97:ee:9f:b7
+```
+
+```text
++-----------------+
+|       .=o.  .   |
+|     . *+*. o    |
+|      =.*..o     |
+|       o + ..    |
+|        S o.     |
+|         o  .    |
+|          .  . . |
+|              o .|
+|               E.|
++-----------------+
+```
+
+The share of participants who missed a similar fingerprint (Tan et al., CHI 2017; similar fingerprints made by an attacker able to do 2^60 computations, shown side by side for confirmation):
+
+| Representation | Participants who missed the attack |
+|---|---|
+| Sentences | 6% |
+| OpenSSH pictures (Visual Host Key) | 10% |
+| Vash (abstract art) | 12% |
+| Words | 14% |
+| Alternating vowels and consonants | 17% |
+| Hex | 21% |
+| Numbers | 35% |
+| Unicorn pictures | 54% |
+
+- No representation was good enough for high-risk situations, and Tan et al. recommend having machines compare instead of people
+- Loss et al. report that even the most similar picture chosen from several million candidates was easy to tell from the original. "Searching for a similar picture" in the tab tries this on a small scale with random digests
+- The identicon in this tool uses only 15 bits, so a pair with the same pattern is expected after about 227 (√(π/2·2^15)) identicons. Avatars for telling things apart and fingerprints for authentication are different things
+
+---
+
 ## 🔍 How the visualization works
 
 1. Turn the input into bytes (UTF-8 for text) and compute the digest with the chosen algorithm
@@ -371,7 +451,13 @@ This tool is designed so that you can learn about cryptographic hash functions s
 - From how the count grows with n, estimate why a brute-force collision search on a 128-bit or 256-bit hash is not realistic
 - Goal: understand with numbers that collisions always exist but cannot be found for a secure hash
 
-### Step 6: Moving to modern hashes
+### Step 6: Compare fingerprints as pictures
+
+- Draw the fingerprint and picture of your own SSH public key in the same form as ssh-keygen
+- Look at different fingerprints with the same picture (Loss et al., Figure 19) and see that the same picture does not guarantee the same key
+- Goal: learn the strengths and limits of comparing by eye
+
+### Step 7: Moving to modern hashes
 
 - Use SHA-256 and SHA-512, and read in the glossary how the treatment of SHA-1 changed (CAs stopping issuance, browsers distrusting it, NIST's plan)
 - Goal: convince yourself why strong algorithms must be chosen
@@ -393,6 +479,7 @@ This tool is designed so that you can learn about cryptographic hash functions s
 - When reviewing an existing system that checks file identity with MD5, a developer uses the Collisions tab in the explanation. It shows that where an attacker can prepare the files, the same MD5 does not mean the same file
 - When explaining why internal rules forbid SHA-1 signatures and certificates, IT and audit staff show that the 320 bytes of SHAttered really collide
 - A developer who uses the first few characters of a hash as an identifier (a shortened commit hash, the first 8 characters in a file name or ID, and so on) estimates how many items it takes before a collision is likely. One hex digit is 4 bits, so 8 digits mean the first 32 bits, and about 80,000 items is the rough figure
+- Server administrators and developers check the fingerprint and picture of their own SSH public keys in the same form as ssh-keygen, and use them to explain the team's key-checking procedure (comparing the fingerprint strings). Different fingerprints with the same picture show why the picture alone is not enough
 - Storage and backup staff check that the premise of deduplication by hash (that collisions do not happen) can be broken by an attacker for MD5 and SHA-1
 
 ### Everyday life
@@ -404,6 +491,7 @@ This tool is designed so that you can learn about cryptographic hash functions s
 
 - As a puzzle, look for ToyHash16 collisions by hand. Only the sum of the bytes matters, so collisions can be made by reordering or by adding
 - Use the grid of a digest as the basis of pixel art, embroidery or bead patterns. Changing the input gives another pattern
+- Use identicons and randomart as designs for creative work such as account icons or greeting-card decorations (the pattern changes with every input)
 - Use the automatic 3D rotation as a display at a study group or an event booth
 
 ### Research
@@ -449,6 +537,12 @@ This tool is designed so that you can learn about cryptographic hash functions s
 - Input bit i is bit (i mod 8) + 1 from the top of byte i ÷ 8 of the 8 bytes. Each input is hashed 65 times (the original and the 64 flips)
 - The random numbers come from `crypto.getRandomValues` on the page and from a seeded generator (mulberry32) in the tests
 
+### Fingerprint art
+
+- Randomart is drawn with the same steps as fingerprint_randomart in OpenSSH sshkey.c. The ssh-keygen -lv output of OpenSSH 8.2p1 for three test keys × SHA256 and MD5 is embedded in `test/core.test.js`, which checks that the output matches character for character (the private keys of the test keys were deleted right after they were made)
+- An SSH public key is read by decoding the second field of the line as Base64 and checking that the key type inside matches the start of the line. The size of an RSA key is the bit length of n, and that of an ECDSA key comes from the curve name
+- "Matching cells" in the similar-picture search counts the cells with the same symbol (including blank cells), so even two unrelated pictures match about 100 cells
+
 ### Internal states and the birthday attack
 
 - To show the internal states, SHA-1 is also implemented in this tool from FIPS 180-4 (the digest itself is still computed with Web Crypto). For both MD5 and SHA-1, the state after each block of the padded message is shown in the same byte order as the digest
@@ -467,6 +561,7 @@ This tool is designed so that you can learn about cryptographic hash functions s
 - Scripts and styles come only from the same origin (`script-src 'self'`, `style-src 'self'`). The HTML has no inline scripts, style attributes or event handlers
 - Dynamic parts of the page are built with `textContent` and elements (no `innerHTML`)
 - `localStorage` stores only the chosen language and theme. The page works where it is not available
+- Only public keys go into the Fingerprint art tab. Anything not in the form of a public key line is not read (do not paste private keys)
 
 ---
 
@@ -476,6 +571,7 @@ This tool is designed so that you can learn about cryptographic hash functions s
 - SHA-3, BLAKE2 and others are not covered (the browser's Web Crypto cannot compute them)
 - The Birthday attack tab searches for collisions in the first n bits (up to 36) of the digest; it does not make collisions of the whole digest. The speed depends on the browser and the device
 - The Diffusion tab measures only 8-byte inputs. With other input lengths or placements, the results for reduced rounds also change
+- Fingerprint art does not check whether a server's key is genuine. To check a key, compare the fingerprint string with a value obtained through a trusted channel
 - The Collisions tab computes pairs found by researchers to check them; it cannot make new collisions
 - The expected range (about 95%) is a statistical guide. A single try outside it does not mean the hash is weak
 - The 3D picture places the sequence of bits in space; it does not represent the internal structure of the hash function
@@ -516,8 +612,9 @@ npm test
 - Runs on GitHub Actions for every push and pull request
 - `test/core.test.js`: MD5 (the RFC 1321 test suite, and inputs with bytes 0x80 and above compared with Node.js `crypto`), the SHA family, ToyHash16, the collision pairs (they collide only under their target algorithm; positions of the differing bytes), input parsing, one-bit flips, the binomial range (compared with an exact BigInt computation), statistics, the grid and 3D layout and projection, SHA-1 (the FIPS 180 examples and Node.js `crypto`), the internal states after each block and the results of appending or prepending (compared with Node.js `crypto`), and the birthday search (the pair found matches only in the first n bits, n=8 finishes within 257 tries, the mean of 200 runs at n=12 is within ±10% of the expected value)
 - `test/core.test.js` (continued): SHA-256 with reduced rounds (64 rounds match Node.js `crypto`) and the diffusion measurement (with a seeded generator, SHA-256, MD5 and SHA-1 are close to the reference while ToyHash16 and 1-4-round SHA-256 are biased)
+- `test/core.test.js` (continued): randomart (matches ssh-keygen -lv character for character; the 11 fingerprints of Figure 19 give the same picture), reading SSH public keys, the similar-picture search, the identicon
 - `test/html.test.js`, `test/contrast.test.js`, `test/messages.test.js`, `test/i18n.test.js`, `test/format.test.js`: CSP, no external scripts, tab ARIA, dictionaries and page text, color contrast (4.5:1 and 3:1), formatting
-- `test/readme.test.js`: compares the README tables (expected ranges, examples, collision pairs, appending, birthday attack, diffusion, grid shapes) with the output of the computation module, and checks the headings, images and directory structure of both READMEs
+- `test/readme.test.js`: compares the README tables (expected ranges, examples, collision pairs, appending, birthday attack, diffusion, Figure 19 fingerprints and picture, grid shapes) with the output of the computation module, and checks the headings, images and directory structure of both READMEs
 
 ---
 
@@ -537,6 +634,9 @@ npm test
 - [NIST, "NIST Retires SHA-1 Cryptographic Algorithm" (December 15, 2022)](https://www.nist.gov/news-events/news/2022/12/nist-retires-sha-1-cryptographic-algorithm)
 - [NIST, "FIPS 202: SHA-3 Standard"](https://csrc.nist.gov/pubs/fips/202/final)
 - [A. Perrig, D. Song, "Hash Visualization: a New Technique to improve Real-World Security" (1999)](https://users.ece.cmu.edu/~adrian/projects/validation/validation.pdf)
+- [D. Loss, T. Limmer, A. von Gernler, "The drunken bishop: An analysis of the OpenSSH fingerprint visualization algorithm" (2009)](http://www.dirk-loss.de/sshvis/drunken_bishop.pdf)
+- [J. Tan, L. Bauer, J. Bonneau, L. F. Cranor, J. Thomas, B. Ur, "Can Unicorns Help Users Compare Crypto Key Fingerprints?" (CHI 2017)](https://users.ece.cmu.edu/~lbauer/papers/2017/chi2017-fingerprints-author.pdf)
+- [OpenSSH, "sshkey.c" (fingerprint_randomart)](https://github.com/openssh/openssh-portable/blob/master/sshkey.c)
 
 ### Related books (ones I worked on)
 
@@ -567,7 +667,9 @@ hashviz/
 │   │   ├── screenshot6.png  # Appending the same data (English)
 │   │   ├── screenshot7.png  # The Birthday attack tab (English)
 │   │   ├── screenshot8.png  # Diffusion of 4-round SHA-256 (English)
-│   │   └── screenshot9.png  # Diffusion of standard SHA-256 (English)
+│   │   ├── screenshot9.png  # Diffusion of standard SHA-256 (English)
+│   │   ├── screenshot10.png # Different fingerprints, same picture (English)
+│   │   └── screenshot11.png # Searching for a similar picture (English)
 │   ├── screenshot.png       # The Avalanche tab
 │   ├── screenshot2.png      # Wang et al.'s collision pair
 │   ├── screenshot3.png      # Avalanche with ToyHash16
@@ -576,11 +678,13 @@ hashviz/
 │   ├── screenshot6.png      # Appending the same data
 │   ├── screenshot7.png      # The Birthday attack tab
 │   ├── screenshot8.png      # Diffusion of 4-round SHA-256
-│   └── screenshot9.png      # Diffusion of standard SHA-256
+│   ├── screenshot9.png      # Diffusion of standard SHA-256
+│   ├── screenshot10.png     # Different fingerprints, same picture
+│   └── screenshot11.png     # Searching for a similar picture
 ├── js/                      # Scripts loaded by the page
 │   ├── app.js               # Page logic (tabs, inputs, results)
-│   ├── draw.js              # Drawing on the Canvas (2D grid, 3D cubes, charts, SAC matrix)
-│   ├── hashviz-core.js      # Computation (MD5, SHA family, ToyHash16, collision pairs, internal states, birthday attack, diffusion, 3D layout)
+│   ├── draw.js              # Drawing on the Canvas (2D grid, 3D cubes, charts, SAC matrix, identicon)
+│   ├── hashviz-core.js      # Computation (MD5, SHA family, ToyHash16, collision pairs, internal states, birthday attack, diffusion, randomart, 3D layout)
 │   ├── i18n.js              # Language choice and replacing the text in the HTML
 │   ├── messages.js          # Japanese and English text
 │   ├── theme-init.js        # Applies the saved theme before drawing

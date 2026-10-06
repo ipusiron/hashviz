@@ -9,7 +9,7 @@ const { parseVars } = load('js/i18n.js').HashVizI18n;
 const C = load('js/hashviz-core.js').HashVizCore;
 const SCRIPTS = ['js/app.js', 'js/draw.js', 'js/hashviz-core.js', 'js/messages.js', 'js/i18n.js', 'js/theme.js', 'js/theme-init.js'];
 const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
-const TABS = ['avalanche', 'diffusion', 'viz', 'collision', 'birthday', 'glossary'];
+const TABS = ['avalanche', 'diffusion', 'viz', 'collision', 'birthday', 'fingerprint', 'glossary'];
 
 test('CSP はスクリプト・スタイルを同じ場所のファイルだけに限り、unsafe-inline と外部の通信を許さない', () => {
   const csp = html.match(/http-equiv="Content-Security-Policy"\s+content="([^"]+)"/)[1];
@@ -63,7 +63,8 @@ test('ボタンは type="button"。入力欄には label があり、入力の�
 });
 
 test('結果の知らせの欄と、印の一覧には aria-live がある。図はキーボードで選べて、名前を持つ（role="img"）', () => {
-  for (const id of ['ava-status', 'viz-status', 'col-status', 'bd-status', 'df-status', 'ava-marks', 'viz-marks', 'col-marks']) {
+  for (const id of ['ava-status', 'viz-status', 'col-status', 'bd-status', 'df-status', 'fp-status', 'fp-search-status', 'ava-marks', 'viz-marks',
+    'col-marks']) {
     assert.match(html, new RegExp(`id="${id}"[^>]*aria-live="polite"`), id);
   }
   const canvases = [...html.matchAll(/<canvas id="([^"]+)" class="bits" tabindex="0" role="img"/g)].map((m) => m[1]);
@@ -71,7 +72,12 @@ test('結果の知らせの欄と、印の一覧には aria-live がある。図
   // 誕生日攻撃のグラフは図とは別（class が chart）。名前は描いたあとに付ける
   const charts = [...html.matchAll(/<canvas id="([^"]+)" class="chart" role="img"/g)].map((m) => m[1]);
   assert.deepEqual(charts, ['df-hist', 'df-sac', 'bd-chart']);
-  assert.equal((html.match(/<canvas/g) || []).length, canvases.length + charts.length);
+  const icons = [...html.matchAll(/<canvas id="([^"]+)" class="icon" role="img"/g)].map((m) => m[1]);
+  assert.deepEqual(icons, ['fp-icon-a', 'fp-icon-b']);
+  assert.equal((html.match(/<canvas/g) || []).length, canvases.length + charts.length + icons.length);
+  // randomart の絵（pre）も名前を持つ
+  const arts = [...html.matchAll(/<pre id="([^"]+)" class="art mono" role="img">/g)].map((m) => m[1]);
+  assert.deepEqual(arts, ['fp-art-a', 'fp-art-b', 'fp-search-a', 'fp-search-b']);
 });
 
 test('アルゴリズム・入力の形式・衝突の組の選択肢は、計算部と同じ値で同じ並び', () => {
@@ -91,6 +97,10 @@ test('アルゴリズム・入力の形式・衝突の組の選択肢は、計�
   assert.deepEqual(pick('df-algo'), C.DIFF_ALGOS);
   assert.deepEqual(pick('df-rounds').map(Number), C.DIFF_ROUNDS);
   assert.deepEqual(pick('df-inputs').map(Number), C.DIFF_INPUTS);
+  assert.deepEqual(pick('fp-algo'), C.FP_ALGOS);
+  assert.deepEqual(pick('fp-mode'), ['ssh', 'fp', ...C.FORMATS]);
+  assert.deepEqual(pick('fp-tries').map(Number), C.ART_TRIES);
+  assert.deepEqual(pick('fp-loss').map(Number), Array.from({ length: C.LOSS_FIG19.length - 1 }, (_, i) => i + 1));
   const sel = html.match(/<select id="col-sample"[\s\S]*?<\/select>/)[0];
   assert.deepEqual([...sel.matchAll(/value="([^"]+)"/g)].map((m) => m[1]), C.SAMPLES.map((s) => s.id));
   for (const s of C.SAMPLES) {
