@@ -842,8 +842,176 @@
     };
   }
 
+  // ===== 視覚的フィンガープリント（OpenSSH の randomart・identicon） =====
+  // OpenSSH の sshkey.c の fingerprint_randomart と同じ作り方。17×9 の盤面の中央から、ダイジェストの各バイトを
+  // 下位から2ビットずつ読んで斜めに1マス動き、通った回数で記号を選ぶ。始点は S、終点は E
+  const ART_W = 17;
+  const ART_H = 9;
+  const ART_CHARS = ' .o+=*BOX@%&#/^SE';
+
+  // 盤面（field[x][y]）と終点
+  function randomartField(dgst) {
+    const len = ART_CHARS.length - 1;
+    const field = Array.from({ length: ART_W }, () => new Array(ART_H).fill(0));
+    let x = (ART_W - 1) / 2;
+    let y = (ART_H - 1) / 2;
+    for (const byte of dgst) {
+      let input = byte;
+      for (let b = 0; b < 4; b++) {
+        x = Math.min(ART_W - 1, Math.max(0, x + (input & 1 ? 1 : -1)));
+        y = Math.min(ART_H - 1, Math.max(0, y + (input & 2 ? 1 : -1)));
+        if (field[x][y] < len - 2) field[x][y] += 1;
+        input >>= 2;
+      }
+    }
+    field[(ART_W - 1) / 2][(ART_H - 1) / 2] = len - 1;
+    field[x][y] = len;
+    return { field, end: [x, y] };
+  }
+
+  // 盤面を ART_H 行の文字列にする（各行 ART_W 文字）
+  function randomartRows(dgst) {
+    const { field } = randomartField(dgst);
+    const len = ART_CHARS.length - 1;
+    return Array.from({ length: ART_H }, (_, y) => Array.from({ length: ART_W }, (__, x) => ART_CHARS[Math.min(field[x][y], len)]).join(''));
+  }
+
+  // 枠の1行。ラベルを左右の「-」の間に置く（sshkey.c と同じ割り振り）。ラベルが長すぎるときは fallback を使う
+  function artBorder(label, fallback) {
+    let t = label ? `[${label}]` : '';
+    if (t.length > ART_W) t = fallback ? `[${fallback}]` : '';
+    t = t.slice(0, ART_W - 1);
+    const left = Math.floor((ART_W - t.length) / 2);
+    return `+${'-'.repeat(left)}${t}${'-'.repeat(ART_W - left - t.length)}+`;
+  }
+
+  // ssh-keygen -lv と同じ枠つきの絵。title は「ED25519 256」など（空なら枠だけ）、hashName は「SHA256」など
+  function randomartText(dgst, title = '', hashName = '', titleFallback = '') {
+    return [artBorder(title, titleFallback), ...randomartRows(dgst).map((r) => `|${r}|`), artBorder(hashName)].join('\n');
+  }
+
+  // 2つの絵で、同じ記号のマスの数（全 ART_W × ART_H）
+  function randomartSimilarity(a, b) {
+    const [ra, rb] = [randomartRows(a).join(''), randomartRows(b).join('')];
+    let same = 0;
+    for (let k = 0; k < ra.length; k++) if (ra[k] === rb[k]) same += 1;
+    return same;
+  }
+
+  // ランダムなダイジェスト（鍵を作り直すことの代わり）を tries 個試し、target にいちばん似た絵を返す
+  async function similarArtSearch({ target, tries, randomBytes, pause }) {
+    const goal = randomartRows(target).join('');
+    let best = null;
+    for (let i = 0; i < tries; i++) {
+      const d = randomBytes(target.length);
+      const rows = randomartRows(d).join('');
+      let same = 0;
+      for (let k = 0; k < goal.length; k++) if (rows[k] === goal[k]) same += 1;
+      if (!best || same > best.same) best = { same, digest: d, index: i };
+      if (pause && i % 500 === 499) await pause();
+    }
+    return best;
+  }
+
+  // 5×5 の identicon（このツールの作り）。ダイジェストの上位15ビットで左3列を決めて左右対称に写し、色相は3〜4バイト目から
+  function identicon(dgst) {
+    const bits = bytesToBits(dgst);
+    const cells = Array.from({ length: 5 }, (_, r) => Array.from({ length: 5 }, (__, c) => bits[r * 3 + (c < 3 ? c : 4 - c)] || 0));
+    return { cells, hue: (((dgst[2] || 0) << 8) | (dgst[3] || 0)) % 360 };
+  }
+
+  // SSH の公開鍵の blob から、長さつきの文字列（4バイトのビッグエンディアンの長さ＋中身）を読む
+  function readSshString(blob, offset) {
+    if (offset + 4 > blob.length) throw new Error('ssh-blob');
+    const n = ((blob[offset] << 24) | (blob[offset + 1] << 16) | (blob[offset + 2] << 8) | blob[offset + 3]) >>> 0;
+    if (offset + 4 + n > blob.length) throw new Error('ssh-blob');
+    return { bytes: blob.slice(offset + 4, offset + 4 + n), next: offset + 4 + n };
+  }
+
+  // RSA の鍵の大きさ（n のビット数）。blob は「種類・e・n」の順
+  function rsaBits(blob, offset) {
+    const e = readSshString(blob, offset);
+    const n = readSshString(blob, e.next).bytes;
+    let i = 0;
+    while (i < n.length && n[i] === 0) i += 1;
+    if (i === n.length) throw new Error('ssh-blob');
+    return (n.length - i - 1) * 8 + (32 - Math.clz32(n[i]));
+  }
+
+  // 鍵の種類 → ssh-keygen が絵の上の枠に書く名前と大きさ
+  const SSH_TYPES = {
+    'ssh-ed25519': ['ED25519', () => 256],
+    'ssh-rsa': ['RSA', rsaBits],
+    'ecdsa-sha2-nistp256': ['ECDSA', () => 256],
+    'ecdsa-sha2-nistp384': ['ECDSA', () => 384],
+    'ecdsa-sha2-nistp521': ['ECDSA', () => 521]
+  };
+
+  // SSH の公開鍵の行（「種類 Base64 コメント」）を読む
+  function parseSshPublicKey(text) {
+    const parts = String(text).trim().split(/\s+/);
+    if (parts.length < 2 || !parts[0]) return { ok: false, error: 'ssh-format' };
+    const [type, b64, ...rest] = parts;
+    const spec = SSH_TYPES[type];
+    if (!spec) return { ok: false, error: 'ssh-type', type };
+    const dec = parseBase64(b64);
+    if (!dec.ok || !dec.bytes.length) return { ok: false, error: 'ssh-base64' };
+    try {
+      const s = readSshString(dec.bytes, 0);
+      if (decodeUtf8(s.bytes) !== type) return { ok: false, error: 'ssh-mismatch', type };
+      return { ok: true, type, label: spec[0], bits: spec[1](dec.bytes, s.next), blob: dec.bytes, comment: rest.join(' ') };
+    } catch {
+      return { ok: false, error: 'ssh-blob' };
+    }
+  }
+
+  const FP_ALGOS = ['MD5', 'SHA-1', 'SHA-256', 'SHA-512'];
+  const ART_HASH = { MD5: 'MD5', 'SHA-1': 'SHA1', 'SHA-256': 'SHA256', 'SHA-512': 'SHA512' };
+  const colonHex = (d) => (toHex(d).match(/../g) || []).join(':');
+  const base64NoPad = (d) => btoa(Array.from(d, (x) => String.fromCharCode(x)).join('')).replace(/=+$/, '');
+
+  // ssh-keygen と同じ指紋の文字列（SHA256 は Base64 の = を外したもの、MD5 はコロン区切りの16進）
+  async function sshFingerprint(blob, algo) {
+    if (algo !== 'MD5' && algo !== 'SHA-256') throw new Error(`unsupported fingerprint: ${algo}`);
+    const d = await digest(algo, blob);
+    return { digest: d, text: algo === 'MD5' ? `MD5:${colonHex(d)}` : `SHA256:${base64NoPad(d)}` };
+  }
+
+  // 指紋そのものを読む。「aa:bb:…」「MD5:aa:bb:…」「16進」「SHA256:Base64」などを受け付ける
+  function parseFingerprint(text) {
+    let s = String(text).trim();
+    const m = s.match(/^(MD5|SHA1|SHA256|SHA384|SHA512):(.*)$/i);
+    if (m && m[1].toUpperCase() !== 'MD5') {
+      const r = parseBase64(m[2]);
+      return r.ok && r.bytes.length ? { ok: true, bytes: r.bytes, hashName: m[1].toUpperCase() } : { ok: false, error: 'fp-format' };
+    }
+    if (m) s = m[2];
+    const r = parseHex(s.replace(/:/g, ''));
+    if (!r.ok || !r.bytes.length) return { ok: false, error: 'fp-format' };
+    return { ok: true, bytes: r.bytes, hashName: m ? 'MD5' : '' };
+  }
+
+  // Loss・Limmer・von Gernler「The drunken bishop」（2009）の図19。先頭が元の指紋（anoncvs.de.openbsd.org の RSA の鍵の MD5）、
+  // 残りの10件は、盤面の閉路を逆向きに歩くように並べ替えて作られた別の指紋で、どれも同じ絵になる
+  const LOSS_FIG19 = [
+    'fc:94:b0:c1:e5:b0:98:7c:58:43:99:76:97:ee:9f:b7',
+    '09:1d:0f:da:c8:fd:e9:40:53:42:99:76:97:ee:9f:b7',
+    '09:1d:27:da:83:dc:fe:94:d0:40:99:76:97:ee:9f:b7',
+    '09:1d:8f:c8:3d:fe:94:80:75:42:99:76:97:ee:9f:b7',
+    '09:1d:9a:dc:3c:fe:94:50:0e:43:69:79:97:ee:9f:b7',
+    '09:1d:a7:9f:0e:34:8c:9c:f5:40:69:79:97:ee:9f:b7',
+    '09:1d:ca:d9:3c:fe:94:50:0e:43:69:79:97:ee:9f:b7',
+    '09:1d:ca:d9:3c:fe:94:50:0e:43:99:76:97:ee:9f:b7',
+    '09:1d:da:9f:0e:84:dc:13:e7:40:99:76:97:ee:9f:b7',
+    '09:1d:e3:9f:0e:84:9c:3d:4d:42:69:79:97:ee:9f:b7',
+    '09:1d:e3:9f:0e:84:c9:3d:4d:42:69:79:97:ee:9f:b7'
+  ];
+  const ART_TRIES = [1000, 10000, 100000];
+
   globalThis.HashVizCore = {
     ALGOS, BITS, FORMATS, MAX_BYTES, SAMPLES,
+    ART_W, ART_H, ART_CHARS, ART_TRIES, FP_ALGOS, ART_HASH, LOSS_FIG19, randomartField, randomartRows, randomartText, randomartSimilarity,
+    similarArtSearch, identicon, parseSshPublicKey, sshFingerprint, parseFingerprint, colonHex,
     sha256Rounds, sha256Compress, DIFF_ALGOS, DIFF_ROUNDS, DIFF_INPUTS, DIFF_INPUT_BYTES, seededBytes, hasher, diffusionExperiment,
     binomialPmf, diffusionSummary,
     md5, md5Pad, md5Compress, md5Chain, md5StateBytes, toyHash16, digest, compareAll,
