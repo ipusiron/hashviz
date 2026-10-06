@@ -35,7 +35,7 @@ const GRAPHICS = [
   ['field-border', 'card'], ['field-border', 'bg'], ['field-border', 'field-bg'],
   ['accent', 'card'], ['accent', 'bg'], ['accent', 'surface'],
   ['bit-one', 'bit-zero'], ['bit-diff', 'bit-same'], ['bit-mark', 'bit-one'], ['bit-mark', 'bit-zero'], ['bit-one', 'scene-bg'], ['bit-zero', 'scene-bg'],
-  ['bit-diff', 'card']
+  ['bit-diff', 'card'], ['sac-low', 'sac-mid'], ['sac-high', 'sac-mid']
 ];
 
 test('ライトとダークの配色は、文字と背景が4.5:1以上、枠とビットの図が3:1以上', () => {

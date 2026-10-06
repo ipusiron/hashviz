@@ -13,7 +13,7 @@ const DOCS = {
   ja: {
     file: 'README.md', switcher: '[English](README.en.md) · 日本語', day: '**Day056 - 生成AIで作るセキュリティツール100**',
     h1: '# HashViz - 教育用ハッシュ関数ビジュアライザー', shots: /^assets\/screenshot\d*\.png$/,
-    h2: ['🌐 デモページ', '📸 スクリーンショット', '✨ 機能', '📖 使い方', '🌊 アバランシェ効果', '💥 衝突の組', '🎂 誕生日攻撃', '🔍 可視化のしくみ', '🎮 ToyHash16',
+    h2: ['🌐 デモページ', '📸 スクリーンショット', '✨ 機能', '📖 使い方', '🌊 アバランシェ効果', '🌀 拡散の測定', '💥 衝突の組', '🎂 誕生日攻撃', '🔍 可視化のしくみ', '🎮 ToyHash16',
       '🎓 学習の進め方', '🎯 ユースケース', '🔬 技術的な説明', '🔒 セキュリティ', '⚠️ 注意と限界', '📝 開発経緯と実装メモ', '🧪 テスト', '🔗 参考',
       '📁 ディレクトリー構造', '💻 動作環境', '📄 ライセンス', '🛠️ このツールについて'],
     head: { theory: '| アルゴリズム | 出力のビット数 | 平均 | 標準偏差 | 約95%の範囲 |', example: '| アルゴリズム | 元の入力のダイジェスト | 変わったビット |',
@@ -31,7 +31,7 @@ const DOCS = {
   en: {
     file: 'README.en.md', switcher: 'English · [日本語](README.md)', day: '**Day056 - 100 Security Tools with Generative AI**',
     h1: '# HashViz - Educational Hash Function Visualizer', shots: /^assets\/en\/screenshot\d*\.png$/,
-    h2: ['🌐 Demo', '📸 Screenshots', '✨ Features', '📖 How to use', '🌊 Avalanche effect', '💥 Collision pairs', '🎂 Birthday attack',
+    h2: ['🌐 Demo', '📸 Screenshots', '✨ Features', '📖 How to use', '🌊 Avalanche effect', '🌀 Diffusion', '💥 Collision pairs', '🎂 Birthday attack',
       '🔍 How the visualization works',
       '🎮 ToyHash16', '🎓 Learning path', '🎯 Use cases', '🔬 Technical notes', '🔒 Security', '⚠️ Notes and limitations', '📝 Development notes',
       '🧪 Tests', '🔗 References', '📁 Directory structure', '💻 Requirements', '📄 License', '🛠️ About this tool'],
@@ -51,6 +51,8 @@ const DOCS = {
 };
 for (const d of Object.values(DOCS)) d.text = read(d.file);
 
+// H2 の節を、見出しの先頭の絵文字で探す
+const sec = (d, emoji) => d.h2.find((x) => x.startsWith(emoji));
 const noCode = (md) => md.replace(/```[\s\S]*?```/g, '');
 const headings = (md) => noCode(md).split('\n').filter((l) => /^#{1,4} /.test(l));
 const h2 = (md) => headings(md).filter((l) => l.startsWith('## ')).map((l) => l.slice(3));
@@ -105,7 +107,7 @@ test('冒頭の形（言語の切り替え・H1・バッジ5種・Dayの行）�
 test('画像: README から参照する画像はすべて実在し300KB以下。assets の PNG は README から参照されているものだけ', () => {
   for (const d of Object.values(DOCS)) {
     const refs = [...d.text.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((m) => m[1]);
-    assert.equal(refs.length, 7, d.file);
+    assert.equal(refs.length, 9, d.file);
     for (const r of refs) {
       assert.match(r, d.shots, r);
       const st = fs.statSync(path.join(ROOT, r));
@@ -119,7 +121,7 @@ test('画像: README から参照する画像はすべて実在し300KB以下。
 
 test('アバランシェの理論の表は、計算部の二項分布の範囲と同じ', () => {
   for (const d of Object.values(DOCS)) {
-    const rows = table(section(d.text, d.h2[4]), d.head.theory);
+    const rows = table(section(d.text, sec(d, '🌊')), d.head.theory);
     assert.deepEqual(rows.map((r) => r[0]), C.ALGOS, d.file);
     for (const [algo, n, mean, sd, range] of rows) {
       const r = C.binomialRange(C.BITS[algo]);
@@ -133,7 +135,7 @@ test('hello world の例は、計算部のダイジェストと、0バイト目�
   const flipped = C.flipBit(src, 0, 0).bytes;
   assert.equal(C.decodeUtf8(flipped), 'iello world');
   for (const d of Object.values(DOCS)) {
-    const rows = table(section(d.text, d.h2[4]), d.head.example);
+    const rows = table(section(d.text, sec(d, '🌊')), d.head.example);
     assert.deepEqual(rows.map((r) => r[0]), ['MD5', 'SHA-1', 'SHA-256', 'ToyHash16'], d.file);
     for (const [algo, hex, changed] of rows) {
       const a = await C.digest(algo, src);
@@ -146,7 +148,7 @@ test('hello world の例は、計算部のダイジェストと、0バイト目�
 
 test('衝突の組の表は、計算部の組（並び・アルゴリズム・長さ・違うバイト数・同じになるダイジェスト）と同じ', async () => {
   for (const d of Object.values(DOCS)) {
-    const rows = table(section(d.text, d.h2[5]), d.head.pairs);
+    const rows = table(section(d.text, sec(d, '💥')), d.head.pairs);
     assert.equal(rows.length, C.SAMPLES.length, d.file);
     for (const [k, s] of C.SAMPLES.entries()) {
       const [, algo, len, diffs, digest] = rows[k];
@@ -163,7 +165,7 @@ test('衝突の組の表は、計算部の組（並び・アルゴリズム・�
 
 test('マス目と3Dの形の表は、計算部の gridShape・voxelShape と同じ。ToyHash16 の例と用語集の項目数も合う', async () => {
   for (const d of Object.values(DOCS)) {
-    const rows = table(section(d.text, d.h2[7]), d.head.grid);
+    const rows = table(section(d.text, sec(d, '🔍')), d.head.grid);
     assert.deepEqual(rows.map((r) => r[0]), C.ALGOS, d.file);
     for (const [algo, n, g2, g3] of rows) {
       const g = C.gridShape(C.BITS[algo]);
@@ -234,7 +236,7 @@ test('表記: 禁止語がない。強調は1節に2カ所まで、箇条書き�
 test('同じデータを足したときの表は、計算部の内部状態の比べ方と、実際に足して計算した結果と同じ', async () => {
   const hello = C.utf8('hello');
   for (const d of Object.values(DOCS)) {
-    const rows = table(section(d.text, d.h2[5]), d.head.extend);
+    const rows = table(section(d.text, sec(d, '💥')), d.head.extend);
     assert.equal(rows.length, C.SAMPLES.length, d.file);
     for (const [k, s] of C.SAMPLES.entries()) {
       const [, block, after, before] = rows[k];
@@ -256,15 +258,15 @@ test('同じデータを足したときの表は、計算部の内部状態の�
 
 test('誕生日攻撃の表は、計算部の期待値と、アルゴリズム全体の目安（BIRTHDAY_LIMITS）と同じ', () => {
   for (const d of Object.values(DOCS)) {
-    const sec = section(d.text, d.h2[6]);
-    const rows = table(sec, d.head.birthday);
+    const bsec = section(d.text, sec(d, '🎂'));
+    const rows = table(bsec, d.head.birthday);
     assert.deepEqual(rows.map((r) => Number(r[0])), [8, 16, 24, 32, 36], d.file);
     for (const [n, hex, expected, all] of rows) {
       assert.equal(Number(hex), Number(n) / 4, `${d.file} ${n}`);
       assert.equal(expected, Math.round(C.birthdayExpected(Number(n))).toLocaleString('en-US'), `${d.file} ${n}`);
       assert.equal(all, (2 ** Number(n)).toLocaleString('en-US'), `${d.file} ${n}`);
     }
-    const limits = table(sec, d.head.limits);
+    const limits = table(bsec, d.head.limits);
     assert.deepEqual(limits.map((r) => r[0]), C.BIRTHDAY_LIMITS.map((x) => x.algo), d.file);
     for (const [k, x] of C.BIRTHDAY_LIMITS.entries()) {
       const [, bits, birthday, attack] = limits[k];
@@ -275,6 +277,31 @@ test('誕生日攻撃の表は、計算部の期待値と、アルゴリズム�
     // 計算部の選べるビット数の上限と、本文の「36ビットまで」がそろう
     assert.equal(Math.max(...C.BIRTHDAY_BITS), 36);
     assert.ok(d.text.includes(d.file === 'README.md' ? '36ビットまで' : 'up to 36'), d.file);
+  }
+});
+
+test('拡散の測定の表は、種を7に固定した乱数で入力100個を測った計算部の結果と同じ', async () => {
+  const name = { ja: (r) => `SHA-256（${r}ラウンド）`, en: (r) => `SHA-256 (${r} round${r === 1 ? '' : 's'})` };
+  const head = { ja: '| アルゴリズム | 違うビット数の平均 |', en: '| Algorithm | Mean differing bits |' };
+  const cases = [['MD5', 64], ['SHA-1', 64], ['SHA-256', 64], ['SHA-512', 64], ['ToyHash16', 64], ['SHA-256-R', 1], ['SHA-256-R', 2], ['SHA-256-R', 4],
+    ['SHA-256-R', 8]];
+  const want = [];
+  for (const [algo, rounds] of cases) {
+    const s = C.diffusionSummary(await C.diffusionExperiment({ algo, rounds, inputs: 100, randomBytes: C.seededBytes(7) }));
+    want.push([algo, rounds, s.mean.toFixed(2), `${(s.within * 100).toFixed(1)}%`, s.sacMeanDev.toFixed(4),
+      `${s.zeroCells.toLocaleString('en-US')} / ${s.cells.toLocaleString('en-US')}`]);
+  }
+  for (const [lang, d] of Object.entries(DOCS)) {
+    const rows = table(section(d.text, sec(d, '🌀')), head[lang]);
+    assert.equal(rows.length, want.length, d.file);
+    rows.forEach((row, k) => {
+      const [algo, rounds, ...values] = want[k];
+      assert.equal(row[0], algo === 'SHA-256-R' ? name[lang](rounds) : algo, `${d.file} ${k}`);
+      assert.deepEqual(row.slice(1), values, `${d.file} ${row[0]}`);
+    });
+    // 目安 0.399/√T（T=100）
+    assert.equal((0.5 * Math.sqrt(2 / (Math.PI * 100))).toFixed(4), '0.0399');
+    assert.ok(section(d.text, sec(d, '🌀')).includes('0.0399'), d.file);
   }
 });
 
