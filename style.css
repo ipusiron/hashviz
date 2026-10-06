@@ -649,6 +649,12 @@ mark.chg,
   max-width: 100%;
 }
 
+/* 絵の中の印は余白なし（等幅の並びをずらさない） */
+.art mark.chg {
+  padding: 0;
+  border-radius: 0;
+}
+
 .icon {
   width: 100px;
   height: 100px;
