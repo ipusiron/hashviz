@@ -273,14 +273,15 @@
     requestAnimationFrame(() => {
       resizeQueued = false;
       GROUPS.forEach(redraw);
-      drawChart();
+      drawCharts();
     });
   });
   for (const g of GROUPS) g.figs.forEach((f) => resizeObserver.observe(f.canvas.parentElement));
   resizeObserver.observe($('bd-chart').parentElement);
+  resizeObserver.observe($('df-hist').parentElement);
 
   // ===== タブ（WAI-ARIA のタブ。矢印キー・Home・End で移る） =====
-  const TABS = ['avalanche', 'viz', 'collision', 'birthday', 'glossary'];
+  const TABS = ['avalanche', 'diffusion', 'viz', 'collision', 'birthday', 'glossary'];
   let current = 'avalanche';
   function selectTab(name, focus = false) {
     current = name;
@@ -296,7 +297,7 @@
       redraw(g);
       animate(g);
     }
-    drawChart();
+    drawCharts();
   }
   for (const k of TABS) $(`tab-${k}`).addEventListener('click', () => selectTab(k));
   $('tab-avalanche').parentElement.addEventListener('keydown', (e) => {
@@ -775,6 +776,133 @@
   });
   for (const id of ['bd-bits', 'bd-trials']) $(id).addEventListener('change', renderBdEstimate);
 
+  // ===== 拡散の測定（統計アバランシェ・SAC 行列） =====
+  const df = { running: false, result: null, status: [], progress: null };
+  const dfLabel = (r) => (r.algo === 'SHA-256-R' ? t('df.labelR', { r: r.rounds }) : r.algo);
+  const pct = (x) => (x * 100).toFixed(1);
+
+  function renderDfControls() {
+    $('df-rounds').disabled = df.running || $('df-algo').value !== 'SHA-256-R';
+    const inputs = Number($('df-inputs').value);
+    $('df-estimate').textContent = t('df.estimate', { inputs: fmtNum(inputs), pairs: fmtNum(inputs * 64), hashes: fmtNum(inputs * 65) });
+    $('df-progress').textContent = df.progress ? t('df.progress', { done: fmtNum(df.progress.done), inputs: fmtNum(df.progress.inputs) }) : '';
+  }
+
+  // 図の名前は今の言語で付け直す。描くのは見えているときだけ
+  function drawDf() {
+    const r = df.result;
+    if (!r) return;
+    $('df-hist').setAttribute('aria-label', t('df.histLabel', { label: dfLabel(r), pairs: fmtNum(r.pairs) }));
+    $('df-sac').setAttribute('aria-label', t('df.sacLabel', { label: dfLabel(r), n: r.n }));
+    if ($('panel-diffusion').hidden || $('df-result').hidden) return;
+    D.histogram($('df-hist'), r.hist, r.n, r.pairs, { x: t('df.axisX'), measured: t('df.legendMeasured'), theory: t('df.legendTheory'), fmt: fmtNum });
+    D.sacMatrix($('df-sac'), r.counts, r.m, r.n, r.inputs);
+  }
+
+  function renderDf() {
+    const r = df.result;
+    if (!r) {
+      $('df-result').hidden = true;
+      for (const id of ['df-hist-summary', 'df-sac-summary']) $(id).textContent = '';
+      $('df-stats').replaceChildren();
+      return;
+    }
+    const s = C.diffusionSummary(r);
+    $('df-result').hidden = false;
+    $('df-hist-summary').textContent = t('df.histSummary', {
+      mean: s.mean.toFixed(2), tmean: s.theoryMean, sd: s.sd.toFixed(2), tsd: s.theorySd.toFixed(2), lo: s.range.lo, hi: s.range.hi, within: pct(s.within)
+    });
+    $('df-sac-summary').textContent = t('df.sacSummary', {
+      dev: s.sacMeanDev.toFixed(4), exp: s.sacExpectedDev.toFixed(4), max: s.sacMaxDev.toFixed(3),
+      zero: fmtNum(s.zeroCells), one: fmtNum(s.oneCells), cells: fmtNum(s.cells)
+    });
+    const rows = [
+      ['df.rowMean', s.mean.toFixed(2), String(s.theoryMean)], ['df.rowSd', s.sd.toFixed(2), s.theorySd.toFixed(2)],
+      ['df.rowWithin', `${pct(s.within)}%`, t('df.about', { x: '95%' })],
+      ['df.rowDev', s.sacMeanDev.toFixed(4), t('df.about', { x: s.sacExpectedDev.toFixed(4) })],
+      ['df.rowMax', s.sacMaxDev.toFixed(3), '-'], ['df.rowZero', fmtNum(s.zeroCells), '0'], ['df.rowOne', fmtNum(s.oneCells), '0']
+    ];
+    const table = el('table', 'stats-table');
+    const head = el('tr');
+    for (const key of ['df.colItem', 'df.colMeasured', 'df.colIdeal']) {
+      const th = el('th', '', t(key));
+      th.scope = 'col';
+      head.append(th);
+    }
+    const thead = el('thead');
+    thead.append(head);
+    const tbody = el('tbody');
+    for (const [key, measured, ideal] of rows) {
+      const tr = el('tr');
+      const th = el('th', '', t(key));
+      th.scope = 'row';
+      tr.append(th, el('td', 'mono', measured), el('td', 'mono', ideal));
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
+    $('df-stats').replaceChildren(table);
+    drawDf();
+  }
+
+  function setDfRunning(on) {
+    df.running = on;
+    $('df-run').disabled = on;
+    for (const id of ['df-algo', 'df-inputs']) $(id).disabled = on;
+    renderDfControls();
+  }
+
+  // 入力を1つ処理するごとに、30ミリ秒たっていれば画面に処理を返す
+  async function runDf() {
+    if (df.running) return;
+    const algo = $('df-algo').value;
+    const rounds = Number($('df-rounds').value);
+    const inputs = Number($('df-inputs').value);
+    df.status = [];
+    df.progress = { done: 0, inputs };
+    show('df-status', []);
+    setDfRunning(true);
+    let lastYield = performance.now();
+    let lastPaint = 0;
+    const pause = () => {
+      df.progress.done += 1;
+      if (performance.now() - lastPaint > 150) {
+        lastPaint = performance.now();
+        renderDfControls();
+      }
+      if (performance.now() - lastYield < 30) return null;
+      lastYield = performance.now();
+      return new Promise((resolve) => setTimeout(resolve, 0));
+    };
+    try {
+      const randomBytes = (k) => crypto.getRandomValues(new Uint8Array(k));
+      df.result = await C.diffusionExperiment({ algo, rounds: algo === 'SHA-256-R' ? rounds : 64, inputs, randomBytes, pause });
+      df.status = [{ key: 'df.done', vars: { label: dfLabel(df.result), pairs: fmtNum(df.result.pairs) }, level: 'ok' }];
+      renderDf();
+    } catch (e) {
+      df.status = [errorItem({ error: e && e.message === 'nosubtle' ? 'nosubtle' : 'empty' })];
+    } finally {
+      df.progress = null;
+      setDfRunning(false);
+      show('df-status', df.status);
+    }
+  }
+  $('df-run').addEventListener('click', runDf);
+  for (const id of ['df-algo', 'df-inputs']) $(id).addEventListener('change', renderDfControls);
+
+  // 結果の文（判定や件数）は、言語を切り替えたら今の結果から作り直す
+  function renderDfStatus() {
+    if (df.running) return;
+    if (df.result && df.status.length && df.status[0].key === 'df.done') {
+      df.status = [{ key: 'df.done', vars: { label: dfLabel(df.result), pairs: fmtNum(df.result.pairs) }, level: 'ok' }];
+    }
+    show('df-status', df.status);
+  }
+
+  function drawCharts() {
+    drawChart();
+    drawDf();
+  }
+
   // ===== 言語・テーマ =====
   function renderAll() {
     renderAva();
@@ -786,6 +914,9 @@
     renderBdProgress();
     renderBd();
     if (!bd.running) show('bd-status', bd.status);
+    renderDfControls();
+    renderDf();
+    renderDfStatus();
     for (const g of GROUPS) {
       g.syncControls();
       renderMarks(g);
@@ -800,12 +931,12 @@
   $('btn-theme').addEventListener('click', () => {
     Theme.toggle($('btn-theme'));
     GROUPS.forEach(redraw);
-    drawChart();
+    drawCharts();
   });
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       GROUPS.forEach(redraw);
-      drawChart();
+      drawCharts();
     });
   }
 

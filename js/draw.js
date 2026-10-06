@@ -206,5 +206,116 @@
     }
   }
 
-  globalThis.HashVizDraw = { grid, cubes, cdfChart };
+  // 凡例を左上から並べる（幅が足りなければ次の行へ）。items は [色, 文字, 点線か, 棒か]。最後の行の y を返す
+  function legend(ctx, items, w, color) {
+    let x = 52;
+    let y = 14;
+    for (const [c, text, dash, bar] of items) {
+      const width = 28 + ctx.measureText(text).width;
+      if (x > 52 && x + width > w - 14) {
+        x = 52;
+        y += 18;
+      }
+      if (bar) {
+        ctx.fillStyle = c;
+        ctx.fillRect(x, y - 5, 22, 10);
+      } else {
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash(dash ? [4, 4] : []);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 22, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x + 28, y);
+      x += width + 18;
+    }
+    return y;
+  }
+
+  // 違うビット数のヒストグラム（棒）と、二項分布 B(n, 1/2) の期待度数（線）。表示する範囲は、実測と平均±5σのうち広いほう
+  function histogram(canvas, hist, n, pairs, labels) {
+    const { ctx, w, h } = fit(canvas, (canvas.clientWidth || 320) < 480 ? 4 / 3 : 16 / 9);
+    const c = { bg: css('--card'), axis: css('--muted'), grid: css('--border'), theory: css('--accent'), bar: css('--bit-diff'), text: css('--text') };
+    ctx.font = '12px "Segoe UI", system-ui, sans-serif';
+    ctx.fillStyle = c.bg;
+    ctx.fillRect(0, 0, w, h);
+    const ly = legend(ctx, [[c.bar, labels.measured, false, true], [c.theory, labels.theory, false, false]], w, c.text);
+    const pmf = C.binomialPmf(n);
+    const sd = Math.sqrt(n) / 2;
+    let first = n;
+    let last = 0;
+    hist.forEach((v, d) => {
+      if (v) {
+        first = Math.min(first, d);
+        last = Math.max(last, d);
+      }
+    });
+    const lo = Math.max(0, Math.min(first, Math.floor(n / 2 - 5 * sd)));
+    const hi = Math.min(n, Math.max(last, Math.ceil(n / 2 + 5 * sd)));
+    let ymax = 1;
+    for (let d = lo; d <= hi; d++) ymax = Math.max(ymax, hist[d], pmf[d] * pairs);
+    const pad = { l: 52, r: 14, t: ly + 20, b: 40 };
+    const bw = (w - pad.l - pad.r) / (hi - lo + 1);
+    const X = (d) => pad.l + (d - lo) * bw;
+    const Y = (v) => h - pad.b - (v / ymax) * (h - pad.t - pad.b);
+    // 目盛り
+    ctx.strokeStyle = c.grid;
+    ctx.lineWidth = 1;
+    ctx.fillStyle = c.axis;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (const v of [0, ymax / 2, ymax]) {
+      ctx.beginPath();
+      ctx.moveTo(pad.l, Y(v));
+      ctx.lineTo(w - pad.r, Y(v));
+      ctx.stroke();
+      ctx.fillText(labels.fmt(v), pad.l - 6, Y(v));
+    }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (const d of [...new Set([lo, Math.round(n / 2), hi])]) ctx.fillText(String(d), X(d) + bw / 2, h - pad.b + 6);
+    ctx.fillText(labels.x, (pad.l + w - pad.r) / 2, h - 16);
+    // 棒
+    ctx.fillStyle = c.bar;
+    for (let d = lo; d <= hi; d++) {
+      if (!hist[d]) continue;
+      ctx.fillRect(X(d) + Math.min(1, bw * 0.1), Y(hist[d]), Math.max(1, bw - Math.min(2, bw * 0.2)), Y(0) - Y(hist[d]));
+    }
+    // 理論
+    ctx.strokeStyle = c.theory;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let d = lo; d <= hi; d++) {
+      const x = X(d) + bw / 2;
+      const y = Y(pmf[d] * pairs);
+      if (d === lo) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // SAC 行列のヒートマップ。P＝counts / inputs を、0（--sac-low）・1/2（--sac-mid）・1（--sac-high）の間で色を混ぜて塗る
+  function sacMatrix(canvas, counts, m, n, inputs) {
+    const { ctx, w, h } = fit(canvas, Math.max(1.5, Math.min(8, n / m)));
+    const [low, mid, high] = ['--sac-low', '--sac-mid', '--sac-high'].map((k) => rgb(css(k)));
+    const mix = (p, q, k) => p.map((v, i) => Math.round(v + (q[i] - v) * k));
+    const cw = w / n;
+    const ch = h / m;
+    for (let i = 0; i < m; i++) {
+      for (let j = 0; j < n; j++) {
+        const p = counts[i * n + j] / inputs;
+        const [r, g, b] = p < 0.5 ? mix(low, mid, p * 2) : mix(mid, high, (p - 0.5) * 2);
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        ctx.fillRect(j * cw, i * ch, cw + 0.5, ch + 0.5);
+      }
+    }
+  }
+
+  globalThis.HashVizDraw = { grid, cubes, cdfChart, histogram, sacMatrix };
 })();

@@ -34,6 +34,9 @@ html, body { margin: 0; padding: 0; }
   --bit-same: #dde3ea;
   --bit-mark: #d6336c;
   --scene-bg: #7f8a97;
+  --sac-low: #2563eb;
+  --sac-mid: #f1f3f6;
+  --sac-high: #dc4a12;
   --shadow: 0 6px 18px rgba(23, 32, 42, 0.08);
   color-scheme: light;
 }
@@ -67,6 +70,9 @@ html, body { margin: 0; padding: 0; }
     --bit-same: #2a333e;
     --bit-mark: #e64980;
     --scene-bg: #5b6573;
+    --sac-low: #6aa5ff;
+    --sac-mid: #222a33;
+    --sac-high: #ff8a4c;
     --shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
     color-scheme: dark;
   }
@@ -100,6 +106,9 @@ html, body { margin: 0; padding: 0; }
   --bit-same: #2a333e;
   --bit-mark: #e64980;
   --scene-bg: #5b6573;
+  --sac-low: #6aa5ff;
+  --sac-mid: #222a33;
+  --sac-high: #ff8a4c;
   --shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }

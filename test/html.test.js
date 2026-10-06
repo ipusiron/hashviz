@@ -9,7 +9,7 @@ const { parseVars } = load('js/i18n.js').HashVizI18n;
 const C = load('js/hashviz-core.js').HashVizCore;
 const SCRIPTS = ['js/app.js', 'js/draw.js', 'js/hashviz-core.js', 'js/messages.js', 'js/i18n.js', 'js/theme.js', 'js/theme-init.js'];
 const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
-const TABS = ['avalanche', 'viz', 'collision', 'birthday', 'glossary'];
+const TABS = ['avalanche', 'diffusion', 'viz', 'collision', 'birthday', 'glossary'];
 
 test('CSP はスクリプト・スタイルを同じ場所のファイルだけに限り、unsafe-inline と外部の通信を許さない', () => {
   const csp = html.match(/http-equiv="Content-Security-Policy"\s+content="([^"]+)"/)[1];
@@ -63,14 +63,15 @@ test('ボタンは type="button"。入力欄には label があり、入力の�
 });
 
 test('結果の知らせの欄と、印の一覧には aria-live がある。図はキーボードで選べて、名前を持つ（role="img"）', () => {
-  for (const id of ['ava-status', 'viz-status', 'col-status', 'bd-status', 'ava-marks', 'viz-marks', 'col-marks']) {
+  for (const id of ['ava-status', 'viz-status', 'col-status', 'bd-status', 'df-status', 'ava-marks', 'viz-marks', 'col-marks']) {
     assert.match(html, new RegExp(`id="${id}"[^>]*aria-live="polite"`), id);
   }
   const canvases = [...html.matchAll(/<canvas id="([^"]+)" class="bits" tabindex="0" role="img"/g)].map((m) => m[1]);
   assert.deepEqual(canvases, ['ava-canvas-a', 'ava-canvas-b', 'ava-canvas-x', 'viz-canvas', 'col-canvas-a', 'col-canvas-b']);
   // 誕生日攻撃のグラフは図とは別（class が chart）。名前は描いたあとに付ける
-  assert.match(html, /<canvas id="bd-chart" class="chart" role="img"/);
-  assert.equal((html.match(/<canvas/g) || []).length, canvases.length + 1);
+  const charts = [...html.matchAll(/<canvas id="([^"]+)" class="chart" role="img"/g)].map((m) => m[1]);
+  assert.deepEqual(charts, ['df-hist', 'df-sac', 'bd-chart']);
+  assert.equal((html.match(/<canvas/g) || []).length, canvases.length + charts.length);
 });
 
 test('アルゴリズム・入力の形式・衝突の組の選択肢は、計算部と同じ値で同じ並び', () => {
@@ -87,6 +88,9 @@ test('アルゴリズム・入力の形式・衝突の組の選択肢は、計�
   assert.deepEqual(pick('bd-bits').map(Number), C.BIRTHDAY_BITS);
   assert.deepEqual(pick('bd-trials'), ['1', '10', '30', '100']);
   assert.deepEqual(pick('ext-where'), ['none', 'suffix', 'prefix']);
+  assert.deepEqual(pick('df-algo'), C.DIFF_ALGOS);
+  assert.deepEqual(pick('df-rounds').map(Number), C.DIFF_ROUNDS);
+  assert.deepEqual(pick('df-inputs').map(Number), C.DIFF_INPUTS);
   const sel = html.match(/<select id="col-sample"[\s\S]*?<\/select>/)[0];
   assert.deepEqual([...sel.matchAll(/value="([^"]+)"/g)].map((m) => m[1]), C.SAMPLES.map((s) => s.id));
   for (const s of C.SAMPLES) {

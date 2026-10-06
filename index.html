@@ -33,6 +33,8 @@
   <nav class="tabs" role="tablist" data-i18n-attr="aria-label:ui.tabsLabel" aria-label="表示の切り替え">
     <button type="button" class="tab-btn" role="tab" id="tab-avalanche" data-tab="avalanche" aria-controls="panel-avalanche" aria-selected="true"
       data-i18n="tab.avalanche">アバランシェ</button>
+    <button type="button" class="tab-btn" role="tab" id="tab-diffusion" data-tab="diffusion" aria-controls="panel-diffusion" aria-selected="false"
+      tabindex="-1" data-i18n="tab.diffusion">拡散の測定</button>
     <button type="button" class="tab-btn" role="tab" id="tab-viz" data-tab="viz" aria-controls="panel-viz" aria-selected="false" tabindex="-1"
       data-i18n="tab.viz">可視化</button>
     <button type="button" class="tab-btn" role="tab" id="tab-collision" data-tab="collision" aria-controls="panel-collision" aria-selected="false"
@@ -145,6 +147,75 @@
               <div id="ava-stats-b" class="table-wrap"></div>
             </div>
           </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 拡散の測定 ===== -->
+    <section id="panel-diffusion" class="panel" role="tabpanel" aria-labelledby="tab-diffusion" hidden>
+      <div class="card">
+        <h2 data-i18n="df.title">拡散の測定（統計アバランシェ・SAC行列）</h2>
+        <p class="lead" data-i18n="df.lead">
+          ランダムな8バイトの入力を作り、その64ビットを1つずつ反転して、ダイジェストのビットがどう変わるかを数えます。理想的なハッシュでは、変わるビット数は二項分布B(n, 1/2)に従い、
+          どの入力ビットを反転しても、出力の各ビットは確率1/2で変わります（厳密なアバランシェ基準、SAC）。<strong>1回の反転では見えない偏りが、
+          多数の試行で見えます</strong>。
+        </p>
+        <div class="form-grid">
+          <div class="field">
+            <label for="df-algo" data-i18n="label.algo">アルゴリズム</label>
+            <select id="df-algo" class="select">
+              <option value="MD5">MD5</option>
+              <option value="SHA-1">SHA-1</option>
+              <option value="SHA-256" selected>SHA-256</option>
+              <option value="SHA-512">SHA-512</option>
+              <option value="ToyHash16">ToyHash16</option>
+              <option value="SHA-256-R" data-i18n="opt.sha256r">SHA-256（ラウンド数を選ぶ）</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="df-rounds" data-i18n="label.dfRounds">ラウンド数（SHA-256）</label>
+            <select id="df-rounds" class="select" aria-describedby="df-rounds-hint" disabled>
+              <option value="1" data-i18n="opt.rounds" data-i18n-vars="n:1">1ラウンド</option>
+              <option value="2" data-i18n="opt.rounds" data-i18n-vars="n:2">2ラウンド</option>
+              <option value="3" data-i18n="opt.rounds" data-i18n-vars="n:3">3ラウンド</option>
+              <option value="4" data-i18n="opt.rounds" data-i18n-vars="n:4" selected>4ラウンド</option>
+              <option value="6" data-i18n="opt.rounds" data-i18n-vars="n:6">6ラウンド</option>
+              <option value="8" data-i18n="opt.rounds" data-i18n-vars="n:8">8ラウンド</option>
+              <option value="12" data-i18n="opt.rounds" data-i18n-vars="n:12">12ラウンド</option>
+              <option value="16" data-i18n="opt.rounds" data-i18n-vars="n:16">16ラウンド</option>
+              <option value="24" data-i18n="opt.rounds" data-i18n-vars="n:24">24ラウンド</option>
+              <option value="32" data-i18n="opt.rounds" data-i18n-vars="n:32">32ラウンド</option>
+              <option value="48" data-i18n="opt.rounds" data-i18n-vars="n:48">48ラウンド</option>
+              <option value="64" data-i18n="opt.rounds" data-i18n-vars="n:64">64ラウンド</option>
+            </select>
+            <p class="hint" id="df-rounds-hint" data-i18n="hint.dfRounds">通常のSHA-256は64ラウンドです。ラウンド数を選べるのは「SHA-256（ラウンド数を選ぶ）」のときだけです。</p>
+          </div>
+          <div class="field">
+            <label for="df-inputs" data-i18n="label.dfInputs">ランダムな入力の数</label>
+            <select id="df-inputs" class="select">
+              <option value="100" data-i18n="opt.inputs" data-i18n-vars="n:100" selected>100個</option>
+              <option value="300" data-i18n="opt.inputs" data-i18n-vars="n:300">300個</option>
+              <option value="1000" data-i18n="opt.inputs" data-i18n-vars="n:1000">1000個</option>
+            </select>
+          </div>
+        </div>
+        <p id="df-estimate" class="hint"></p>
+        <div class="actions">
+          <button type="button" id="df-run" class="btn" data-i18n="btn.dfRun">測る</button>
+        </div>
+        <p id="df-progress" class="note"></p>
+        <div id="df-status" class="status" role="status" aria-live="polite"></div>
+        <div id="df-result" hidden>
+          <h3 data-i18n="df.histTitle">違うビット数の分布（統計アバランシェ）</h3>
+          <p id="df-hist-summary" class="metric"></p>
+          <canvas id="df-hist" class="chart" role="img" width="640" height="360"></canvas>
+          <p class="hint" data-i18n="df.histHint">棒が実測の度数、線が二項分布B(n, 1/2)の期待度数です。</p>
+          <h3 data-i18n="df.sacTitle">SAC行列（入力ビット×出力ビット）</h3>
+          <p id="df-sac-summary" class="metric"></p>
+          <canvas id="df-sac" class="chart" role="img" width="640" height="160"></canvas>
+          <p class="hint" data-i18n="df.sacHint">行が入力ビット（上が0）、列が出力ビット（左が0）です。マスの色は、その入力ビットを反転したときに出力ビットが変わった割合Pで、青が0、中間の色が1/2、赤が1です。理想的なハッシュでは、全体がほぼ中間の色になります。</p>
+          <div id="df-stats" class="table-wrap"></div>
+          <p class="msg info" data-i18n="df.caution">統計の指標が理想に近いことと、攻撃に強いことは別です。このページの測り方（8バイトの入力）では、SHA-256は8ラウンドほどで指標が理想に近づきますが、残りのラウンドは、統計では見えない攻撃（差分攻撃など）への余裕でもあります。</p>
         </div>
       </div>
     </section>
