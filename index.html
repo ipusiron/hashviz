@@ -1,362 +1,377 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="description" content="教育用ハッシュ関数ビジュアライザー - アバランシェ効果と衝突デモ" />
-  <meta name="referrer" content="no-referrer" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';" />
-  <title>HashViz - 教育用ハッシュ関数ビジュアライザー</title>
-  <link rel="stylesheet" href="./style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="HashViz - ハッシュ関数のアバランシェ効果と、研究で見つかった本物の衝突を、ビットの絵で確かめる教育用ツール">
+  <meta name="author" content="ipusiron">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <script src="js/theme-init.js"></script>
+  <title>HashViz</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="site-header">
-    <h1>HashViz</h1>
-    <p class="subtitle">教育用ハッシュ関数ビジュアライザー</p>
-    <p class="description">暗号学的ハッシュ関数の性質を視覚的に体験できる教育ツールです。<br>
-    アバランシェ効果の観察、ハッシュ値のビット可視化、既知の衝突例の確認ができます。</p>
+    <div class="header-row">
+      <div class="header-spacer"></div>
+      <h1>HashViz</h1>
+      <div class="header-actions">
+        <button type="button" id="btn-lang" class="icon-btn" data-i18n="ui.langButton" data-i18n-attr="aria-label:ui.langLabel;title:ui.langLabel"
+          aria-label="Switch to English" title="Switch to English">English</button>
+        <button type="button" id="btn-theme" class="icon-btn" aria-label="ダークモードに切り替える" title="ダークモードに切り替える">🌙</button>
+      </div>
+    </div>
+    <p class="subtitle" data-i18n="ui.subtitle">ハッシュ関数のアバランシェ効果と、研究で見つかった本物の衝突を、ビットの絵で確かめる教育用ツール</p>
   </header>
 
-  <main>
-    <nav class="tabs" role="tablist" aria-label="HashViz Tabs">
-      <button class="tab is-active" data-tab="avalanche" role="tab" aria-selected="true">アバランシェ</button>
-      <button class="tab" data-tab="viz" role="tab" aria-selected="false">可視化</button>
-      <button class="tab" data-tab="collision" role="tab" aria-selected="false">衝突デモ</button>
-      <button class="tab" data-tab="glossary" role="tab" aria-selected="false">用語集</button>
-    </nav>
+  <noscript><p class="noscript" data-i18n="ui.noscript">このページはJavaScriptで動きます。JavaScriptを有効にしてから開き直してください。</p></noscript>
 
-    <!-- Avalanche -->
-    <section id="panel-avalanche" class="panel is-active" role="tabpanel" aria-labelledby="tab-avalanche">
+  <nav class="tabs" role="tablist" data-i18n-attr="aria-label:ui.tabsLabel" aria-label="表示の切り替え">
+    <button type="button" class="tab-btn" role="tab" id="tab-avalanche" data-tab="avalanche" aria-controls="panel-avalanche" aria-selected="true"
+      data-i18n="tab.avalanche">アバランシェ</button>
+    <button type="button" class="tab-btn" role="tab" id="tab-viz" data-tab="viz" aria-controls="panel-viz" aria-selected="false" tabindex="-1"
+      data-i18n="tab.viz">可視化</button>
+    <button type="button" class="tab-btn" role="tab" id="tab-collision" data-tab="collision" aria-controls="panel-collision" aria-selected="false"
+      tabindex="-1" data-i18n="tab.collision">衝突</button>
+    <button type="button" class="tab-btn" role="tab" id="tab-glossary" data-tab="glossary" aria-controls="panel-glossary" aria-selected="false"
+      tabindex="-1" data-i18n="tab.glossary">用語集</button>
+  </nav>
+
+  <main class="container">
+    <!-- ===== アバランシェ ===== -->
+    <section id="panel-avalanche" class="panel" role="tabpanel" aria-labelledby="tab-avalanche">
       <div class="card">
-        <h2>アバランシェ効果デモ</h2>
-        <div class="row">
-          <label>入力
-            <input id="ava-input" type="text" placeholder="任意の文字列（例：hello world）" maxlength="10000" autocomplete="off" />
-          </label>
-          <label>アルゴリズム
-            <select id="ava-algo">
-              <option>SHA-1</option>
-              <option>SHA-256</option>
-              <option>SHA-512</option>
-              <option>MD5</option>
+        <h2 data-i18n="ava.title">アバランシェ効果</h2>
+        <p class="lead" data-i18n="ava.lead">入力の1ビットだけを反転し、ダイジェスト（ハッシュ値）のビットがどれだけ変わるかを比べます。理想的なハッシュでは、<strong>平均で半分のビットが変わります</strong>。弱いハッシュ（ToyHash16）と比べると違いがわかります。</p>
+        <div class="form-grid">
+          <div class="field span-all">
+            <label for="ava-input" data-i18n="label.input">入力</label>
+            <textarea id="ava-input" class="text-area mono" rows="2" maxlength="10000" spellcheck="false" autocomplete="off">hello world</textarea>
+          </div>
+          <div class="field">
+            <label for="ava-format" data-i18n="label.format">入力の形式</label>
+            <select id="ava-format" class="select">
+              <option value="text" data-i18n="opt.text">テキスト（UTF-8）</option>
+              <option value="hex" data-i18n="opt.hex">16進</option>
+              <option value="base64" data-i18n="opt.base64">Base64</option>
             </select>
-          </label>
-        </div>
-        <div class="row compact">
-          <label class="label-with-help">バイト位置<span class="help-icon">?</span>
-            <span class="tooltip">入力文字列のどのバイト（文字）を変更するか指定します。0から始まります。例: "hello"なら0=h, 1=e, 2=l...</span>
-            <input id="ava-byte" type="number" min="0" max="9999" value="0" autocomplete="off" class="short" />
-          </label>
-          <label class="label-with-help">ビット位置<span class="help-icon">?</span>
-            <span class="tooltip">選択したバイトのどのビットを反転するか指定します（0-7）。0が最下位ビット(LSB)、7が最上位ビット(MSB)です。</span>
-            <input id="ava-bit" type="number" min="0" max="7" value="0" autocomplete="off" class="short" />
-          </label>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0;">
-          <button id="ava-run" class="btn">計算する</button>
-          <div class="switch-container">
-            <span class="switch-label">3D表示</span>
-            <label class="switch">
-              <input type="checkbox" id="ava-toggle-3d">
-              <span class="slider"></span>
-            </label>
+          </div>
+          <div class="field">
+            <label for="ava-algo" data-i18n="label.algo">アルゴリズム</label>
+            <select id="ava-algo" class="select">
+              <option value="MD5">MD5</option>
+              <option value="SHA-1">SHA-1</option>
+              <option value="SHA-256" selected>SHA-256</option>
+              <option value="SHA-512">SHA-512</option>
+              <option value="ToyHash16">ToyHash16</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ava-byte" data-i18n="label.byte">反転するバイトの位置</label>
+            <input id="ava-byte" class="text-input" type="number" inputmode="numeric" min="0" step="1" value="0" autocomplete="off"
+              aria-describedby="ava-byte-hint">
+            <p class="hint" id="ava-byte-hint" data-i18n="hint.byte">0から数えます。テキストの場合はUTF-8に直したバイト列での位置です（日本語の1文字は3バイト）。</p>
+          </div>
+          <div class="field">
+            <label for="ava-bit" data-i18n="label.bit">反転するビットの位置（0〜7）</label>
+            <input id="ava-bit" class="text-input" type="number" inputmode="numeric" min="0" max="7" step="1" value="0" autocomplete="off"
+              aria-describedby="ava-bit-hint">
+            <p class="hint" id="ava-bit-hint" data-i18n="hint.bit">0が最下位ビット、7が最上位ビットです。</p>
           </div>
         </div>
+        <div class="actions">
+          <button type="button" id="ava-prev" class="btn ghost" data-i18n="btn.prevBit">前のビット</button>
+          <button type="button" id="ava-next" class="btn ghost" data-i18n="btn.nextBit">次のビット</button>
+          <button type="button" id="ava-random" class="btn ghost" data-i18n="btn.randomBit">ランダムな位置</button>
+        </div>
+        <div id="ava-status" class="status" role="status" aria-live="polite"></div>
 
-        <div class="grid-2">
-          <div>
-            <h3>元の入力</h3>
-            <pre id="ava-hex-a" class="mono"></pre>
-            <div class="canvas-container">
-              <canvas id="ava-canvas-a" width="400" height="400" aria-label="Original digest grid"></canvas>
-              <div id="ava-3d-a" class="canvas-3d"></div>
+        <div id="ava-result">
+          <h3 data-i18n="ava.flipTitle">反転した場所</h3>
+          <div class="table-wrap">
+            <table class="flip-table">
+              <thead><tr><td></td><th scope="col" data-i18n="ava.colBefore">反転前</th><th scope="col" data-i18n="ava.colAfter">反転後</th></tr></thead>
+              <tbody>
+                <tr><th scope="row" id="ava-row-byte"></th><td id="ava-byte-before" class="mono"></td><td id="ava-byte-after" class="mono"></td></tr>
+                <tr><th scope="row" data-i18n="ava.rowBits">ビット（左が7、右が0）</th><td id="ava-bits-before" class="mono"></td><td id="ava-bits-after" class="mono"></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p id="ava-owner" class="note"></p>
+
+          <div class="metrics">
+            <p id="ava-diff" class="metric"></p>
+            <p id="ava-theory" class="note"></p>
+            <p id="ava-verdict" class="msg"></p>
+          </div>
+
+          <div class="grid three">
+            <figure class="digest-fig">
+              <figcaption data-i18n="ava.digestA">元の入力のダイジェスト</figcaption>
+              <pre id="ava-hex-a" class="hex mono"></pre>
+              <canvas id="ava-canvas-a" class="bits" tabindex="0" role="img" width="400" height="400"></canvas>
+            </figure>
+            <figure class="digest-fig">
+              <figcaption data-i18n="ava.digestB">反転後のダイジェスト</figcaption>
+              <pre id="ava-hex-b" class="hex mono"></pre>
+              <canvas id="ava-canvas-b" class="bits" tabindex="0" role="img" width="400" height="400"></canvas>
+            </figure>
+            <figure class="digest-fig">
+              <figcaption data-i18n="ava.digestDiff">違うビット（XOR）</figcaption>
+              <pre id="ava-hex-x" class="hex mono"></pre>
+              <canvas id="ava-canvas-x" class="bits" tabindex="0" role="img" width="400" height="400"></canvas>
+            </figure>
+          </div>
+          <div class="view-row">
+            <label class="check-row"><input type="checkbox" id="ava-3d"><span data-i18n="label.3d">3Dで表示</span></label>
+            <label class="check-row"><input type="checkbox" id="ava-rotate"><span data-i18n="label.autoRotate">自動で回す</span></label>
+            <button type="button" id="ava-reset-view" class="btn ghost" data-i18n="btn.resetView">向きを戻す</button>
+            <button type="button" id="ava-clear" class="btn ghost" data-i18n="btn.clearMarks">印を消す</button>
+          </div>
+          <p class="hint" id="ava-grid-hint" data-i18n="hint.grid">明るいマスが1、暗いマスが0です。マスを押すか、図を選んで矢印キーとEnterで、そのビットに印を付けられます。</p>
+          <p id="ava-marks" class="note" aria-live="polite"></p>
+
+          <details class="fold">
+            <summary data-i18n="stats.title">統計</summary>
+            <p class="hint" data-i18n="stats.note">1つのダイジェストの0と1の偏りを数えたもので、ハッシュの強さを示す数ではありません。</p>
+            <div class="grid two">
+              <div id="ava-stats-a" class="table-wrap"></div>
+              <div id="ava-stats-b" class="table-wrap"></div>
             </div>
-          </div>
-          <div>
-            <h3>1ビット反転後</h3>
-            <pre id="ava-hex-b" class="mono"></pre>
-            <div class="canvas-container">
-              <canvas id="ava-canvas-b" width="400" height="400" aria-label="Flipped digest grid"></canvas>
-              <div id="ava-3d-b" class="canvas-3d"></div>
-            </div>
-          </div>
+          </details>
         </div>
-
-        <div class="metrics">
-          <span>相違ビット数: <strong id="ava-diff-count">-</strong></span>
-          <span>相違率: <strong id="ava-diff-rate">-</strong></span>
-        </div>
-
-        <details class="statistics-accordion">
-          <summary>統計データ</summary>
-          <div class="statistics-content">
-            <div class="grid-2">
-              <div>
-                <h4>元の入力の統計</h4>
-                <div id="ava-stats-a" class="stats-table"></div>
-              </div>
-              <div>
-                <h4>1ビット反転後の統計</h4>
-                <div id="ava-stats-b" class="stats-table"></div>
-              </div>
-            </div>
-          </div>
-        </details>
-
-        <p class="hint">※ MD5/SHA-1 は安全でないため、実運用では使用しないでください。</p>
       </div>
     </section>
 
-    <!-- Visualization -->
-    <section id="panel-viz" class="panel" role="tabpanel" aria-labelledby="tab-viz">
+    <!-- ===== 可視化 ===== -->
+    <section id="panel-viz" class="panel" role="tabpanel" aria-labelledby="tab-viz" hidden>
       <div class="card">
-        <h2>ハッシュ値可視化</h2>
-        <div class="row">
-          <label>入力
-            <input id="viz-input" type="text" placeholder="任意の文字列（例：hello world）" maxlength="10000" autocomplete="off" />
-          </label>
-          <div style="display: flex; gap: 12px; align-items: end;">
-            <label>アルゴリズム
-              <select id="viz-algo">
-                <option>SHA-1</option>
-                <option>SHA-256</option>
-                <option>SHA-512</option>
-                <option>MD5</option>
-              </select>
-            </label>
-            <button id="viz-run" class="btn">ハッシュ化</button>
+        <h2 data-i18n="viz.title">ハッシュ値の可視化</h2>
+        <p class="lead" data-i18n="viz.lead">ダイジェストのビットを上位から順に、左から右へ、行が終われば下の行へ並べます。入力を少し変えると、模様がまったく別のものになります。</p>
+        <div class="form-grid">
+          <div class="field span-all">
+            <label for="viz-input" data-i18n="label.input">入力</label>
+            <textarea id="viz-input" class="text-area mono" rows="2" maxlength="10000" spellcheck="false" autocomplete="off">hello world</textarea>
+          </div>
+          <div class="field">
+            <label for="viz-format" data-i18n="label.format">入力の形式</label>
+            <select id="viz-format" class="select">
+              <option value="text" data-i18n="opt.text">テキスト（UTF-8）</option>
+              <option value="hex" data-i18n="opt.hex">16進</option>
+              <option value="base64" data-i18n="opt.base64">Base64</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="viz-algo" data-i18n="label.algo">アルゴリズム</label>
+            <select id="viz-algo" class="select">
+              <option value="MD5">MD5</option>
+              <option value="SHA-1">SHA-1</option>
+              <option value="SHA-256" selected>SHA-256</option>
+              <option value="SHA-512">SHA-512</option>
+              <option value="ToyHash16">ToyHash16</option>
+            </select>
           </div>
         </div>
-        
-        <div class="row compact right">
-          <div class="switch-container">
-            <span class="switch-label">3D表示</span>
-            <label class="switch">
-              <input type="checkbox" id="viz-toggle-3d">
-              <span class="slider"></span>
-            </label>
+        <div id="viz-status" class="status" role="status" aria-live="polite"></div>
+        <div id="viz-result">
+          <h3 data-i18n="viz.digest">ダイジェスト（16進）</h3>
+          <pre id="viz-hex" class="hex mono"></pre>
+          <figure class="digest-fig single">
+            <canvas id="viz-canvas" class="bits" tabindex="0" role="img" width="400" height="400"></canvas>
+          </figure>
+          <div class="view-row">
+            <label class="check-row"><input type="checkbox" id="viz-3d"><span data-i18n="label.3d">3Dで表示</span></label>
+            <label class="check-row"><input type="checkbox" id="viz-rotate"><span data-i18n="label.autoRotate">自動で回す</span></label>
+            <button type="button" id="viz-reset-view" class="btn ghost" data-i18n="btn.resetView">向きを戻す</button>
+            <button type="button" id="viz-clear" class="btn ghost" data-i18n="btn.clearMarks">印を消す</button>
           </div>
+          <p class="hint" id="viz-grid-hint" data-i18n="hint.grid">明るいマスが1、暗いマスが0です。マスを押すか、図を選んで矢印キーとEnterで、そのビットに印を付けられます。</p>
+          <p id="viz-marks" class="note" aria-live="polite"></p>
+          <details class="fold">
+            <summary data-i18n="viz.binary">2進数で見る</summary>
+            <pre id="viz-binary" class="hex mono"></pre>
+          </details>
+          <details class="fold">
+            <summary data-i18n="stats.title">統計</summary>
+            <p class="hint" data-i18n="stats.note">1つのダイジェストの0と1の偏りを数えたもので、ハッシュの強さを示す数ではありません。</p>
+            <div id="viz-stats" class="table-wrap"></div>
+          </details>
         </div>
-        
-        <pre id="viz-hex" class="mono"></pre>
-        <div class="canvas-container">
-          <canvas id="viz-canvas" width="400" height="400" aria-label="Digest grid"></canvas>
-          <div id="viz-3d" class="canvas-3d"></div>
-        </div>
-
-        <details class="statistics-accordion">
-          <summary>統計データ</summary>
-          <div class="statistics-content">
-            <div id="viz-stats" class="stats-table"></div>
-          </div>
-        </details>
       </div>
     </section>
 
-    <!-- Collision Demo -->
-    <section id="panel-collision" class="panel" role="tabpanel" aria-labelledby="tab-collision">
+    <!-- ===== 衝突 ===== -->
+    <section id="panel-collision" class="panel" role="tabpanel" aria-labelledby="tab-collision" hidden>
       <div class="card">
-        <h2>衝突デモ</h2>
-
-        <div class="row">
-          <label>サンプル選択
-            <select id="col-sample"></select>
-          </label>
-          <button id="col-load" class="btn">サンプルを読み込む</button>
-        </div>
-
-        <div class="grid-2">
-          <div>
-            <h3>入力A</h3>
-            <textarea id="col-a" rows="6" class="mono" placeholder="Base64 もしくは Hex" maxlength="100000" autocomplete="off"></textarea>
-            <div id="col-a-display" class="diff-display mono" style="display: none;"></div>
+        <h2 data-i18n="col.title">衝突</h2>
+        <p class="lead" data-i18n="col.lead">異なる2つの入力が同じダイジェストになることを衝突と呼びます。MD5とSHA-1は、研究で見つかった<strong>本物の衝突の組</strong>をこのページの中で計算して確かめられます。入力を1文字でも変えると、衝突は崩れます。</p>
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="col-sample" data-i18n="label.sample">衝突の組</label>
+            <select id="col-sample" class="select">
+              <option value="md5-wang2004" data-i18n="sample.md5-wang2004">MD5：Wangらの衝突（2004年、128バイト）</option>
+              <option value="md5-stevens2012" data-i18n="sample.md5-stevens2012">MD5：1ブロックだけの衝突（Stevens、2012年、64バイト）</option>
+              <option value="md5-textcoll" data-i18n="sample.md5-textcoll">MD5：文字列どうしの衝突（HashClash、72文字）</option>
+              <option value="sha1-shattered" data-i18n="sample.sha1-shattered">SHA-1：SHAtteredの先頭320バイト（2017年）</option>
+              <option value="toy-ab" data-i18n="sample.toy-ab">ToyHash16：「AB」と0x83</option>
+              <option value="toy-abc" data-i18n="sample.toy-abc">ToyHash16：「ABC」と0xC6</option>
+            </select>
           </div>
-          <div>
-            <h3>入力B</h3>
-            <textarea id="col-b" rows="6" class="mono" placeholder="Base64 もしくは Hex" maxlength="100000" autocomplete="off"></textarea>
-            <div id="col-b-display" class="diff-display mono" style="display: none;"></div>
+          <div class="field field-btn">
+            <button type="button" id="col-load" class="btn" data-i18n="btn.loadSample">入力欄に入れる</button>
           </div>
         </div>
-
-        <div id="col-diff-info" class="diff-info" style="display: none;">
-          <h4>入力値の差異</h4>
-          <p id="col-explanation"></p>
-          <div id="col-differences"></div>
-        </div>
-
-        <div class="row compact">
-          <div class="setting-display">
-            <label>入力フォーマット</label>
-            <span id="col-encoding-display" class="setting-value">hex</span>
+        <div id="col-note" class="sample-note"></div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="col-format" data-i18n="label.format">入力の形式</label>
+            <select id="col-format" class="select">
+              <option value="text" data-i18n="opt.text">テキスト（UTF-8）</option>
+              <option value="hex" data-i18n="opt.hex">16進</option>
+              <option value="base64" data-i18n="opt.base64">Base64</option>
+            </select>
           </div>
-          <div class="setting-display">
-            <label>アルゴリズム</label>
-            <span id="col-algo-display" class="setting-value">SHA-1</span>
-          </div>
-        </div>
-        
-        <!-- Hidden inputs for compatibility -->
-        <input type="hidden" id="col-encoding" value="hex">
-        <input type="hidden" id="col-algo" value="SHA-1">
-
-        <div style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0;">
-          <button id="col-run" class="btn">計算</button>
-          <div class="switch-container">
-            <span class="switch-label">3D表示</span>
-            <label class="switch">
-              <input type="checkbox" id="col-toggle-3d">
-              <span class="slider"></span>
-            </label>
+          <div class="field">
+            <label for="col-algo" data-i18n="label.algo">アルゴリズム</label>
+            <select id="col-algo" class="select">
+              <option value="MD5">MD5</option>
+              <option value="SHA-1">SHA-1</option>
+              <option value="SHA-256">SHA-256</option>
+              <option value="SHA-512">SHA-512</option>
+              <option value="ToyHash16">ToyHash16</option>
+            </select>
           </div>
         </div>
-
-        <div class="grid-2">
-          <div>
-            <h3>ハッシュA</h3>
-            <pre id="col-hex-a" class="mono"></pre>
-            <div class="canvas-container">
-              <canvas id="col-canvas-a" width="400" height="400"></canvas>
-              <div id="col-3d-a" class="canvas-3d"></div>
-            </div>
+        <div class="grid two">
+          <div class="field">
+            <label for="col-a" data-i18n="label.inputA">入力A</label>
+            <textarea id="col-a" class="text-area mono" rows="6" maxlength="100000" spellcheck="false" autocomplete="off"></textarea>
           </div>
-          <div>
-            <h3>ハッシュB</h3>
-            <pre id="col-hex-b" class="mono"></pre>
-            <div class="canvas-container">
-              <canvas id="col-canvas-b" width="400" height="400"></canvas>
-              <div id="col-3d-b" class="canvas-3d"></div>
-            </div>
+          <div class="field">
+            <label for="col-b" data-i18n="label.inputB">入力B</label>
+            <textarea id="col-b" class="text-area mono" rows="6" maxlength="100000" spellcheck="false" autocomplete="off"></textarea>
           </div>
         </div>
-
-        <div class="badge-row">
-          <span id="col-result" class="badge">未計算</span>
-        </div>
-
-        <details class="statistics-accordion">
-          <summary>統計データ</summary>
-          <div class="statistics-content">
-            <div class="grid-2">
-              <div>
-                <h4>入力Aの統計</h4>
-                <div id="col-stats-a" class="stats-table"></div>
-              </div>
-              <div>
-                <h4>入力Bの統計</h4>
-                <div id="col-stats-b" class="stats-table"></div>
-              </div>
-            </div>
+        <div id="col-status" class="status" role="status" aria-live="polite"></div>
+        <div id="col-result">
+          <p id="col-verdict" class="badge"></p>
+          <p id="col-bytes" class="note"></p>
+          <div class="grid two">
+            <figure class="dump-fig">
+              <figcaption data-i18n="col.dumpA">入力Aのバイト（違うところに印）</figcaption>
+              <pre id="col-dump-a" class="dump mono"></pre>
+            </figure>
+            <figure class="dump-fig">
+              <figcaption data-i18n="col.dumpB">入力Bのバイト（違うところに印）</figcaption>
+              <pre id="col-dump-b" class="dump mono"></pre>
+            </figure>
           </div>
-        </details>
-
-        <details style="margin-top: 24px;">
-          <summary>注意事項</summary>
-          <ul>
-            <li>MD5 / SHA-1 は衝突攻撃が現実的で、署名・検証用途には不適切です。</li>
-            <li>教育目的の既知サンプルのみを対象とします。</li>
-          </ul>
-        </details>
+          <div class="grid two">
+            <figure class="digest-fig">
+              <figcaption data-i18n="col.digestA">入力Aのダイジェスト</figcaption>
+              <pre id="col-hex-a" class="hex mono"></pre>
+              <canvas id="col-canvas-a" class="bits" tabindex="0" role="img" width="400" height="400"></canvas>
+            </figure>
+            <figure class="digest-fig">
+              <figcaption data-i18n="col.digestB">入力Bのダイジェスト</figcaption>
+              <pre id="col-hex-b" class="hex mono"></pre>
+              <canvas id="col-canvas-b" class="bits" tabindex="0" role="img" width="400" height="400"></canvas>
+            </figure>
+          </div>
+          <div class="view-row">
+            <label class="check-row"><input type="checkbox" id="col-3d"><span data-i18n="label.3d">3Dで表示</span></label>
+            <label class="check-row"><input type="checkbox" id="col-rotate"><span data-i18n="label.autoRotate">自動で回す</span></label>
+            <button type="button" id="col-reset-view" class="btn ghost" data-i18n="btn.resetView">向きを戻す</button>
+            <button type="button" id="col-clear" class="btn ghost" data-i18n="btn.clearMarks">印を消す</button>
+          </div>
+          <p class="hint" id="col-grid-hint" data-i18n="hint.grid">明るいマスが1、暗いマスが0です。マスを押すか、図を選んで矢印キーとEnterで、そのビットに印を付けられます。</p>
+          <p id="col-marks" class="note" aria-live="polite"></p>
+          <h3 data-i18n="col.allTitle">ほかのアルゴリズムでは</h3>
+          <div class="table-wrap">
+            <table class="all-table">
+              <thead>
+                <tr><th scope="col" data-i18n="col.colAlgo">アルゴリズム</th><th scope="col" data-i18n="col.colResult">結果</th></tr>
+              </thead>
+              <tbody id="col-all"></tbody>
+            </table>
+          </div>
+          <p class="hint" data-i18n="col.allNote">本物の衝突の組でも、ほかのアルゴリズムでは違うダイジェストになります。衝突は、アルゴリズムごとに狙って作られたものです。</p>
+          <p class="msg warn" data-i18n="col.caution">MD5とSHA-1は衝突を作れるので、電子署名や改ざんの検知に使ってはいけません。</p>
+        </div>
       </div>
     </section>
 
-    <!-- Glossary -->
-    <section id="panel-glossary" class="panel" role="tabpanel" aria-labelledby="tab-glossary">
+    <!-- ===== 用語集 ===== -->
+    <section id="panel-glossary" class="panel" role="tabpanel" aria-labelledby="tab-glossary" hidden>
       <div class="card">
-        <h2>暗号学用語集</h2>
-        <p>ハッシュ関数と暗号学に関する重要な用語を解説します。</p>
-        
-        <div class="glossary-list">
-          <div class="glossary-item">
-            <h3>ハッシュ関数 (Hash Function)</h3>
-            <p>任意の長さの入力データを固定長のハッシュ値に変換する一方向関数。「指紋」のような役割を持ち、データの完整性確認や高速検索に使用される。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>アバランシェ効果 (Avalanche Effect)</h3>
-            <p>入力の1ビットを変更すると、出力のビットの約半数が変化する性質。優れたハッシュ関数の重要な特徴で、わずかな入力変化が予測困難な大きな出力変化を引き起こす。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>ハッシュ値 (Hash Value / Digest)</h3>
-            <p>ハッシュ関数によって計算された固定長の出力値。元のデータの「デジタル指紋」として機能し、データの同一性確認に使用される。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>衝突 (Collision)</h3>
-            <p>異なる入力データが同じハッシュ値を生成する現象。理論的には避けられないが、暗号学的に安全なハッシュ関数では実際に見つけることが計算上困難。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>衝突耐性 (Collision Resistance)</h3>
-            <p>同じハッシュ値を持つ2つの異なる入力を見つけることが計算上困難である性質。暗号学的ハッシュ関数の核心的な安全性要件。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>一方向性 (One-way Property)</h3>
-            <p>ハッシュ値から元の入力データを復元することが計算上困難である性質。暗号学的ハッシュ関数の基本的な安全性要件。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>MD5 (Message Digest 5)</h3>
-            <p>128ビット出力の暗号学的ハッシュ関数。1991年に開発されたが、現在は衝突攻撃が発見されており、セキュリティ用途での使用は推奨されない。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>SHA-1 (Secure Hash Algorithm 1)</h3>
-            <p>160ビット出力の暗号学的ハッシュ関数。2017年に実際の衝突が発見され（SHAttered攻撃）、現在は非推奨。SHA-2系列への移行が必要。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>SHA-2 (SHA-256, SHA-512)</h3>
-            <p>現在広く使用されている安全な暗号学的ハッシュ関数群。SHA-256（256ビット出力）とSHA-512（512ビット出力）が代表的。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>SHA-3</h3>
-            <p>2015年にNISTが標準化した最新の暗号学的ハッシュ関数。SHA-2とは異なる内部構造（Keccakスポンジ構造）を採用し、多様性による安全性向上を図る。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>誕生日攻撃 (Birthday Attack)</h3>
-            <p>誕生日のパラドックスを利用した衝突発見手法。nビット出力のハッシュ関数では、約2^(n/2)回の試行で衝突が発見できる理論的な攻撃。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>Wang攻撃</h3>
-            <p>2004年に王小雲らが発表したMD5の衝突攻撃手法。差分攻撃の一種で、特定の差分パターンを持つメッセージペアから衝突を効率的に発見。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>SHAttered攻撃</h3>
-            <p>2017年にGoogleとCWIの研究チームがSHA-1で実証した衝突攻撃。約9京回の計算で実際の衝突を発見し、SHA-1の実用的な脆弱性を証明。</p>
-          </div>
-
-          <div class="glossary-item">
-            <h3>ToyHash16</h3>
-            <p>本ツールで使用する教育用の簡易ハッシュ関数。入力バイトの総和を16ビットで計算。衝突が容易に発見できるため、ハッシュ関数の脆弱性を学習する教材として有効。</p>
-          </div>
-        </div>
+        <h2 data-i18n="gl.title">用語集</h2>
+        <p class="lead" data-i18n="gl.lead">ハッシュ関数と、このツールで扱う攻撃の用語です。</p>
+        <dl class="glossary">
+          <dt data-i18n="gl.hash.term">ハッシュ関数（hash function）</dt>
+          <dd data-i18n="gl.hash.desc">任意の長さのデータから、決まった長さの値（ダイジェスト）を計算する関数です。暗号学的ハッシュ関数には、一方向性・第二原像耐性・衝突耐性が求められ、データの完全性の確認や電子署名に使われます。</dd>
+          <dt data-i18n="gl.digest.term">ダイジェスト（digest、ハッシュ値）</dt>
+          <dd data-i18n="gl.digest.desc">ハッシュ関数の出力です。長さはアルゴリズムで決まり、MD5は128ビット、SHA-1は160ビット、SHA-256は256ビット、SHA-512は512ビットです。</dd>
+          <dt data-i18n="gl.avalanche.term">アバランシェ効果（avalanche effect）</dt>
+          <dd data-i18n="gl.avalanche.desc">
+            入力の1ビットを変えると、出力のビットの約半分が変わる性質です。より厳しい条件に、どの入力ビットを反転しても出力の各ビットが確率1/2で反転する「厳密なアバランシェ基準（SAC、
+            WebsterとTavares、1985年）」があります。1回の試行で変わるビット数は二項分布に従うので、ちょうど50%にはなりません。
+          </dd>
+          <dt data-i18n="gl.collision.term">衝突（collision）</dt>
+          <dd data-i18n="gl.collision.desc">異なる2つの入力が同じダイジェストになることです。入力の種類は出力の種類より多いので衝突は必ずありますが、安全なハッシュ関数では見つけることが計算量的に困難です。</dd>
+          <dt data-i18n="gl.collisionResistance.term">衝突耐性（collision resistance）</dt>
+          <dd data-i18n="gl.collisionResistance.desc">同じダイジェストになる2つの異なる入力を見つけることが困難である性質です。MD5とSHA-1は、これが破られています。</dd>
+          <dt data-i18n="gl.preimage.term">一方向性（原像耐性、preimage resistance）</dt>
+          <dd data-i18n="gl.preimage.desc">ダイジェストから、そのダイジェストになる入力を見つけることが困難である性質です。</dd>
+          <dt data-i18n="gl.secondPreimage.term">第二原像耐性（second-preimage resistance）</dt>
+          <dd data-i18n="gl.secondPreimage.desc">ある入力が与えられたとき、それと同じダイジェストになる別の入力を見つけることが困難である性質です。衝突耐性より弱い条件で、MD5でも実用的な攻撃は見つかっていません。</dd>
+          <dt data-i18n="gl.birthday.term">誕生日攻撃（birthday attack）</dt>
+          <dd data-i18n="gl.birthday.desc">誕生日のパラドックスを使って衝突を探す方法です。nビットのダイジェストなら、ランダムに試して最初の衝突が見つかるまでの回数の期待値は約√(π/2)・2^(n/2)回（約1.25×2^(n/2)回）です。</dd>
+          <dt data-i18n="gl.md.term">Merkle–Damgård構造</dt>
+          <dd data-i18n="gl.md.desc">メッセージを64バイトなどのブロックに区切り、内部状態（IHV）を1ブロックずつ更新していく構造です。MD5・SHA-1・SHA-2が使っています。2つの入力が同じ長さで、ブロックの区切りで内部状態がそろっていれば、後ろに同じデータを足しても衝突は保たれます。</dd>
+          <dt data-i18n="gl.md5.term">MD5</dt>
+          <dd data-i18n="gl.md5.desc">128ビットのハッシュ関数です。1991年にRivestが設計し、1992年にRFC 1321として公開されました。2004年に衝突が示され、今は数秒で衝突を作れます。電子署名や改ざんの検知に使ってはいけません。</dd>
+          <dt data-i18n="gl.sha1.term">SHA-1</dt>
+          <dd data-i18n="gl.sha1.desc">
+            160ビットのハッシュ関数です。2017年にSHAtteredで実際の衝突が示され、2020年には選択プレフィックス衝突（SHA-1 is a Shambles）も実現しました。
+            公的に信頼されるTLSサーバー証明書では、認証局による発行が2016年1月から禁止され、主要ブラウザーも2017年に信頼しなくなりました。NISTは2030年末までに使用を終える方針です。
+          </dd>
+          <dt data-i18n="gl.sha2.term">SHA-2（SHA-256・SHA-512など）</dt>
+          <dd data-i18n="gl.sha2.desc">現在広く使われているハッシュ関数の系列です。実際の衝突は見つかっていません。</dd>
+          <dt data-i18n="gl.sha3.term">SHA-3</dt>
+          <dd data-i18n="gl.sha3.desc">2015年にNISTがFIPS 202として標準化したハッシュ関数です。SHA-2とは違うスポンジ構造（Keccak）を使います。ブラウザーのWeb Cryptoではまだ計算できないため、このツールでは扱っていません。</dd>
+          <dt data-i18n="gl.wang.term">Wangらの攻撃</dt>
+          <dd data-i18n="gl.wang.desc">2004年に王小雲（Xiaoyun Wang）らが発表した、MD5などの衝突攻撃です。差分攻撃の一種で、MD5の標準の初期値のまま2ブロックの衝突の組を作ります。</dd>
+          <dt data-i18n="gl.shattered.term">SHAttered</dt>
+          <dd data-i18n="gl.shattered.desc">2017年にGoogleとCWIが公表した、SHA-1の最初の衝突です。SHA-1を約2^63回（約922京回）計算し、CPUで6,500年分、GPUで110年分の計算を使いました。内容の違う2つのPDFが同じSHA-1になります。</dd>
+          <dt data-i18n="gl.chosenPrefix.term">選択プレフィックス衝突（chosen-prefix collision）</dt>
+          <dd data-i18n="gl.chosenPrefix.desc">2つの入力の先頭（プレフィックス）を攻撃者が自由に選び、その後ろに付けるデータを計算して衝突させる、より強い攻撃です。MD5では2007年に示され、SHA-1では2020年に実現しました（SHA-1 is a Shambles）。</dd>
+          <dt data-i18n="gl.flame.term">Flame</dt>
+          <dd data-i18n="gl.flame.desc">
+            2012年に見つかったマルウェアです。MD5の選択プレフィックス衝突の新しい変種を使い、Microsoftのライセンス用の認証局が署名した証明書と、
+            コード署名に使える偽の証明書の署名対象を同じMD5にしました。そのため正規の署名が偽の証明書でもそのまま有効になり、Windows Updateを装って広がりました。
+          </dd>
+          <dt data-i18n="gl.toy.term">ToyHash16</dt>
+          <dd data-i18n="gl.toy.desc">このツールのための教育用の弱いハッシュです。バイトの和を65536で割った余りを2バイトで返します。衝突は簡単に作れ、1ビットの反転で変わる出力ビットも平均2ビットほどしかありません。</dd>
+          <dt data-i18n="gl.hashvis.term">ハッシュの可視化（hash visualization）</dt>
+          <dd data-i18n="gl.hashvis.desc">ダイジェストのような意味のない並びを絵にして、人が見比べやすくする方法です。PerrigとSongが1999年に提案し、OpenSSHの「randomart」（VisualHostKey）はこれを元にしています。絵が違えば鍵が違うとわかりますが、似て見えても同じとは限りません。</dd>
+        </dl>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="footer">
-      <p>🔗 GitHubリポジトリ: 
-      <a href="https://github.com/ipusiron/hashviz" target="_blank" rel="noopener noreferrer">ipusiron/hashviz</a>
-      </p>
-    </div>
+  <footer class="site-footer">
+    <a href="https://github.com/ipusiron/hashviz" target="_blank" rel="noopener noreferrer" data-i18n="ui.repo">GitHubリポジトリー（ipusiron/hashviz）</a>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/js-md5@0.8.3/build/md5.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-  <script src="./js/hash-engines.js"></script>
-  <script src="./js/utils.js"></script>
-  <script src="./js/statistics.js"></script>
-  <script src="./js/canvas-2d.js"></script>
-  <script src="./js/canvas-3d.js"></script>
-  <script src="./js/interactions.js"></script>
-  <script src="./js/app.js"></script>
+  <script src="js/hashviz-core.js"></script>
+  <script src="js/messages.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/draw.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

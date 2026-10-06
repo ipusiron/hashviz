@@ -5,55 +5,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 HashViz is an educational cryptographic hash function visualization tool that demonstrates:
-- **Avalanche Effect**: Shows how a single bit change in input dramatically changes the hash output
-- **Hash Visualization**: Converts hash digests into visual bit grids (2D and 3D)
-- **Collision Demo**: Demonstrates known hash collisions with pre-loaded samples
-- **Glossary**: Educational term definitions for cryptographic concepts
+- **Avalanche Effect**: Flips one input bit and compares the digests, against the binomial range B(n, 1/2) expected from an ideal hash
+- **Hash Visualization**: Lays the digest bits out as a 2D grid or 3D cubes, with bit marking (mouse or keyboard)
+- **Collisions**: Real collision pairs found by researchers (MD5: Wang et al. 2004, Stevens 2012 single block, HashClash text; SHA-1: first 320 bytes of SHAttered) plus ToyHash16 pairs, compared under every algorithm
+- **Glossary**: 19 terms
 
 ## Architecture
 
-Single-page web application with modular JavaScript (no build process):
+Single-page web application, plain scripts, no build process and no external dependencies (no CDN):
 
 ```
-index.html          # Main UI with four tabs (Avalanche, Visualization, Collision, Glossary)
-style.css           # Dark theme styling with responsive layouts
+index.html            # Four tabs (Avalanche, Visualize, Collisions, Glossary); meta CSP is 'self' only
+style.css             # Color tokens for light and dark; --bit-* and --scene-bg are read by js/draw.js
 js/
-├── hash-engines.js # Hash implementations: MD5 (via js-md5), ToyHash16, Web Crypto API
-├── utils.js        # Encoding utilities, bit operations, global state (selectedBits, is3DMode)
-├── statistics.js   # Entropy, byte distribution, run length statistics
-├── canvas-2d.js    # 2D grid drawing with click-to-select functionality
-├── canvas-3d.js    # Three.js 3D visualization with rotation animation
-├── interactions.js # Tab switching, 3D toggle, canvas click handlers
-└── app.js          # Main application logic for each tab
-data/
-└── collisions.json # Collision samples (ToyHash16 real collisions, MD5/SHA-1 educational demos)
+├── hashviz-core.js   # HashVizCore: MD5 (own RFC 1321 implementation, md5Chain gives per-block states), Web Crypto SHA,
+│                     #   ToyHash16, input parsing (text/hex/base64), flipBit, binomialRange, stats, SAMPLES (with sources),
+│                     #   gridShape/voxelShape/voxelCenter, scene3d (painter's algorithm polygons), gridCellAt. No DOM.
+├── draw.js           # HashVizDraw: Canvas drawing of the grid and the cubes (devicePixelRatio aware)
+├── app.js            # Page logic: tabs (WAI-ARIA), rendering on every input, figure groups (marks, 3D view, auto rotation)
+├── messages.js       # HashVizMessages: Japanese and English text (same keys)
+├── i18n.js           # HashVizI18n: language detection (?lang= → saved → browser) and data-i18n replacement
+├── theme-init.js     # Applies the saved theme before first paint
+└── theme.js          # HashVizTheme: light/dark toggle
+test/                 # node --test (no dependencies)
 ```
 
 Key implementation details:
-- Web Crypto API for SHA-1/256/512; js-md5 CDN library for MD5
-- ToyHash16: Educational hash function (`sum(bytes) mod 65536`) with real collisions
-- Canvas 2D drawing with bit-level click selection (synced to 3D)
-- Three.js 3D voxel visualization with automatic rotation
-- 2D↔3D coordinate mapping preserves bit position correspondence
+- The HTML default text is the Japanese dictionary text; `test/html.test.js` checks they match
+- The DOM is built with `textContent` and elements only (no `innerHTML`, no `.style`, no `console`, no `Math.random`)
+- Auto rotation runs only while 3D is on, rotation is checked, the tab is visible and the page is visible
+- README tables (expected ranges, examples, collision pairs, grid shapes) are checked against the core by `test/readme.test.js`
 
 ## Development Commands
 
 ```bash
-# Run locally (any static server)
-python -m http.server 8000
-
-# View the application
-start http://localhost:8000   # Windows
-open http://localhost:8000    # macOS
+npm test                      # node --test, Node.js 22+
+python -m http.server 8000    # then open http://localhost:8000/ (opening index.html directly also works)
 ```
-
-## Testing Approach
-
-Manual testing via browser:
-1. **Avalanche Effect**: Input text, flip specific bit positions, verify ~50% bit difference
-2. **Visualization**: Test different hash algorithms, verify 2D/3D grid rendering
-3. **Collision Demo**: Load ToyHash16 samples to verify actual hash collisions
-4. **3D Toggle**: Switch between 2D/3D modes, verify click selection syncs
 
 ## GitHub Pages Deployment
 
@@ -64,6 +52,5 @@ Manual testing via browser:
 ## Important Notes
 
 - Educational purposes only - MD5 and SHA-1 are cryptographically broken
-- MD5/SHA-1 collision samples are simplified educational demos (real collisions require complex binary data)
-- ToyHash16 samples demonstrate real collisions (e.g., "AB" = 0x83 both hash to 0x0083)
-- External dependencies loaded via CDN: js-md5, Three.js
+- The collision pairs are real data from the cited sources; each collides only under its target algorithm (tested)
+- Do not link to shattered.io (the domain no longer hosts the original Google/CWI site); cite the paper (IACR ePrint 2017/190) and the Google Security Blog
