@@ -12,7 +12,9 @@ English · [日本語](README.md)
 
 HashViz is an educational tool for checking the properties of hash functions as pictures of bits. Flip a single bit of the input, and compare which bits of the digest (hash value) changed, as a grid of cells and as 3D cubes. The number of changed bits is shown against the range expected from an ideal hash (a binomial distribution).
 
-In the Collisions tab, you can compute real collision pairs found by researchers right in this page: for MD5, the pair shown by Wang et al. in 2004 (128 bytes), a single-block pair (64 bytes) and two printable strings (72 characters); for SHA-1, the first 320 bytes of the two SHAttered PDFs. With the other algorithms, the same pairs give completely different digests.
+In the Collisions tab, you can compute real collision pairs found by researchers right in this page: for MD5, the pair shown by Wang et al. in 2004 (128 bytes), a single-block pair (64 bytes) and two pairs of printable strings (72 and 128 characters); for SHA-1, the first 320 bytes of the two SHAttered PDFs. With the other algorithms, the same pairs give completely different digests. You can also add the same text before or after both inputs and check whether the collision survives, side by side with the internal state after each block.
+
+In the Birthday attack tab, compare only the first n bits of the digest, measure how many messages it takes to find two with the same value, and compare that with the theoretical expectation.
 
 The aim is to let students and engineers who are starting out in cryptography and security try out, hands-on, properties of hash functions that are hard to picture from text and formulas alone. Nothing is sent over the network.
 
@@ -48,6 +50,14 @@ Try it directly in your browser.
 >
 >*The first 320 bytes of SHAttered collide only under SHA-1 (dark mode)*
 
+>![Appending hello breaks the 72-character pair (internal state after each block)](assets/en/screenshot6.png)
+>
+>*Appending hello breaks the 72-character pair (internal state after each block)*
+
+>![The Birthday attack tab (first 20 bits of SHA-256, 30 runs; the cumulative distribution of tries against the theory)](assets/en/screenshot7.png)
+>
+>*The Birthday attack tab (first 20 bits of SHA-256, 30 runs; the cumulative distribution of tries against the theory)*
+
 ---
 
 ## ✨ Features
@@ -73,6 +83,14 @@ Try it directly in your browser.
 - Marks the bytes that differ between the two inputs and shows how many of them differ
 - Tells whether the chosen algorithm gives the same digest (a collision), and lists the result for every other algorithm in a table
 - The inputs are editable, so you can check that changing even one character breaks the collision
+- Adds the same text before or after both inputs and tells whether the collision survives. For MD5 and SHA-1, lists the internal state (IHV) of A and B after each 64-byte block, marking the words that differ, the blocks where the inputs differ and the blocks that include padding
+
+### Birthday attack
+
+- Compares only the first n bits (8-36) of the digest (MD5, SHA-1, SHA-256, SHA-512), hashing messages of the form "random seed-number" in turn until two give the same value
+- Compares the number of tries in 1-100 runs with the expected value √(π/2·2^n), and draws their cumulative distribution over the theoretical curve
+- Shows the pair found (the two messages and their digests, with the matching first n bits marked). The Stop button stops the search
+- Lists the birthday bound for the whole digest of each algorithm and the cost of the known collision attacks
 
 ### Glossary
 
@@ -109,6 +127,14 @@ Try it directly in your browser.
 2. Check the verdict (same digest) and the positions of the differing bytes
 3. Check in the "With the other algorithms" table that the other algorithms do not collide
 4. Change one character of input B and see the collision break
+5. Under "Appending the same data", choose where to add and what text. Check with the internal states that the 72-character pair breaks when text is appended and the 128-character pair survives
+
+### The Birthday attack tab
+
+1. Choose the algorithm, the number of bits n to compare and the number of runs (an estimate of the work is shown)
+2. Press "Search". If it takes long, press "Stop"
+3. Check that the average number of tries is close to the expected value, and far below 2^n
+4. Check that adding 4 bits to n makes the number of tries about 4 times (2^(4/2)) larger
 
 ### The Glossary tab
 
@@ -164,6 +190,52 @@ The pairs in the Collisions tab are the data from the papers and their distribut
 - SHAttered is the first SHA-1 collision, announced by Google and CWI in 2017. It took about 2^63 SHA-1 computations (about 9.2 quintillion): 6,500 CPU years and 110 GPU years. The two PDFs are identical for the first 192 bytes, and 62 bytes differ within the next 128. Appending the same content after the first 320 bytes keeps the collision
 
 MD5 and SHA-1 use the Merkle–Damgård construction, which updates an internal state one block at a time. If two inputs have the same length and their internal states agree at a block boundary, appending the same data to both keeps the collision. **Collisions can be made for MD5 and SHA-1, so do not use them for digital signatures or tamper detection.**
+
+### Appending the same data
+
+The results of adding `hello` after or before both inputs with "Appending the same data" in the Collisions tab:
+
+| Pair | Block where the internal states agree | Appended after | Added before |
+|---|---|---|---|
+| Wang et al.'s collision | 2 | Survives | Breaks |
+| Single-block collision | 1 | Survives | Breaks |
+| Two printable strings (72 characters) | 2 (the last block, with padding) | Breaks | Breaks |
+| Two printable strings (128 characters) | 2 | Survives | Breaks |
+| First 320 bytes of SHAttered | 5 | Survives | Breaks |
+| "AB" and 0x83 | none (a sum) | Survives | Survives |
+| "ABC" and 0xC6 | none (a sum) | Survives | Survives |
+
+- Only pairs whose internal states agree at a block boundary inside the message, with identical messages after it, survive appending. The 72-character pair agrees only after the last block, which includes the padding, so appending moves the padding and breaks it
+- Adding data before the inputs starts the compression from a different internal state than the one the pair was made for, so it breaks. Data that should come first has to be included when the pair is computed
+- ToyHash16 is a sum of bytes, so adding the same bytes before or after both inputs increases both values by the same amount, and the collision survives
+
+---
+
+## 🎂 Birthday attack
+
+Finding a collision of an n-bit hash does not take 2^n computations. When different inputs are hashed one after another, the chance that a new value matches one seen before grows with the square of the number of tries (the birthday paradox). The expected number of tries until the first collision is about √(π/2·2^n). **The Birthday attack tab measures this number by comparing only the first n bits of the digest.**
+
+| Bits compared | Hex digits | Expected tries until the first collision | 2^n |
+|---|---|---|---|
+| 8 | 2 | 20 | 256 |
+| 16 | 4 | 321 | 65,536 |
+| 24 | 6 | 5,134 | 16,777,216 |
+| 32 | 8 | 82,137 | 4,294,967,296 |
+| 36 | 9 | 328,549 | 68,719,476,736 |
+
+- The probability of having found a collision within k tries is approximately 1−exp(−k(k−1)/2^(n+1)). The chart draws this curve over the measurement
+- The messages are "random seed-number" (for example `3fa9c2e10-0`), with a new seed for each run. The same seed gives the same result
+
+The birthday bound for the whole digest of each algorithm, and the cost of the known collision attacks:
+
+| Algorithm | Bits | Birthday attack | Known collision attack |
+|---|---|---|---|
+| MD5 | 128 | about 2^64 | about 2^16 (identical-prefix collision, compression-function calls) |
+| SHA-1 | 160 | about 2^80 | about 2^63.1 (SHAttered) |
+| SHA-256 | 256 | about 2^128 | none found |
+| SHA-512 | 512 | about 2^256 | none found |
+
+- When a way to make collisions with fewer computations than the birthday attack is found, the hash is said to be "broken". The MD5 and SHA-1 figures are from the 2017 paper by Stevens et al. (IACR ePrint 2017/190)
 
 ---
 
@@ -238,9 +310,16 @@ This tool is designed so that you can learn about cryptographic hash functions s
 
 - Compute real collision pairs found by researchers
 - Check that the same pairs do not collide under SHA-256
+- Compare, with the internal state after each block, pairs that survive appending the same text and pairs that break
 - Goal: learn that algorithms once thought secure were broken, and that cryptographic algorithms have a lifetime
 
-### Step 5: Moving to modern hashes
+### Step 5: Measure how easily collisions are found with a birthday attack
+
+- Search for collisions in the first n bits and check that it takes about √(π/2·2^n) tries
+- From how the count grows with n, estimate why a brute-force collision search on a 128-bit or 256-bit hash is not realistic
+- Goal: understand with numbers that collisions always exist but cannot be found for a secure hash
+
+### Step 6: Moving to modern hashes
 
 - Use SHA-256 and SHA-512, and read in the glossary how the treatment of SHA-1 changed (CAs stopping issuance, browsers distrusting it, NIST's plan)
 - Goal: convince yourself why strong algorithms must be chosen
@@ -254,11 +333,13 @@ This tool is designed so that you can learn about cryptographic hash functions s
 - In a university or vocational school class, students enter their own names and check whether the number of bits changed by a one-bit flip falls within the expected range. Putting SHA-256 and ToyHash16 side by side starts a discussion of what makes a good hash
 - When studying for security certifications, learners check the differences between one-wayness, second-preimage resistance and collision resistance with the glossary and the Collisions tab. Reading what "collision resistance is broken" means after seeing a real pair sticks better than memorizing the words
 - A teacher projects the Wang et al. or SHAttered pair and demonstrates in class that the digests are the same while the data differ
+- In a probability or statistics class, try the birthday paradox dozens of times with hashes instead of the birthdays in the classroom, and compare the measured distribution with the theoretical curve
 
 ### Work
 
 - When reviewing an existing system that checks file identity with MD5, a developer uses the Collisions tab in the explanation. It shows that where an attacker can prepare the files, the same MD5 does not mean the same file
 - When explaining why internal rules forbid SHA-1 signatures and certificates, IT and audit staff show that the 320 bytes of SHAttered really collide
+- A developer who uses the first few characters of a hash as an identifier (a shortened commit hash, the first 8 characters in a file name or ID, and so on) estimates how many items it takes before a collision is likely. One hex digit is 4 bits, so 8 digits mean the first 32 bits, and about 80,000 items is the rough figure
 - Storage and backup staff check that the premise of deduplication by hash (that collisions do not happen) can be broken by an attacker for MD5 and SHA-1
 
 ### Everyday life
@@ -275,6 +356,7 @@ This tool is designed so that you can learn about cryptographic hash functions s
 ### Research
 
 - Paste the hex of a collision pair from a paper as it is and check in the browser whether it really collides
+- Check the condition behind the statement in exercises such as SEED Labs that "appending the same data to a collision pair keeps the collision", side by side with a pair where it does not hold (the 72-character pair)
 - Collect avalanche results at several positions and record how many fall within the binomial range
 
 ### CTF
@@ -308,6 +390,11 @@ This tool is designed so that you can learn about cryptographic hash functions s
 
 - The statistics table (number of 1s, balance of 0s and 1s [entropy], runs of the same bit, distinct byte values) counts the 0s and 1s within one digest. It does not measure the strength of the hash
 
+### Internal states and the birthday attack
+
+- To show the internal states, SHA-1 is also implemented in this tool from FIPS 180-4 (the digest itself is still computed with Web Crypto). For both MD5 and SHA-1, the state after each block of the padded message is shown in the same byte order as the digest
+- The birthday search hashes 1,024 messages at a time and gives control back to the page every 30 milliseconds (so the Stop button works). The values seen are kept as numbers in a `Map`, so n is limited to 36 bits
+
 ### Drawing
 
 - Both the 2D grid and the 3D cubes are drawn on a Canvas. The picture follows the width of the page and is drawn at `devicePixelRatio` times on high-resolution screens
@@ -328,6 +415,7 @@ This tool is designed so that you can learn about cryptographic hash functions s
 
 - This tool cannot read files. Paste text, hex or Base64 into the inputs
 - SHA-3, BLAKE2 and others are not covered (the browser's Web Crypto cannot compute them)
+- The Birthday attack tab searches for collisions in the first n bits (up to 36) of the digest; it does not make collisions of the whole digest. The speed depends on the browser and the device
 - The Collisions tab computes pairs found by researchers to check them; it cannot make new collisions
 - The expected range (about 95%) is a statistical guide. A single try outside it does not mean the hash is weak
 - The 3D picture places the sequence of bits in space; it does not represent the internal structure of the hash function
@@ -366,9 +454,9 @@ npm test
 
 - Runs with `node --test` on Node.js 22 or later, with no dependencies (no `npm install` needed)
 - Runs on GitHub Actions for every push and pull request
-- `test/core.test.js`: MD5 (the RFC 1321 test suite, and inputs with bytes 0x80 and above compared with Node.js `crypto`), the SHA family, ToyHash16, the collision pairs (they collide only under their target algorithm; positions of the differing bytes), input parsing, one-bit flips, the binomial range (compared with an exact BigInt computation), statistics, and the grid and 3D layout and projection
+- `test/core.test.js`: MD5 (the RFC 1321 test suite, and inputs with bytes 0x80 and above compared with Node.js `crypto`), the SHA family, ToyHash16, the collision pairs (they collide only under their target algorithm; positions of the differing bytes), input parsing, one-bit flips, the binomial range (compared with an exact BigInt computation), statistics, the grid and 3D layout and projection, SHA-1 (the FIPS 180 examples and Node.js `crypto`), the internal states after each block and the results of appending or prepending (compared with Node.js `crypto`), and the birthday search (the pair found matches only in the first n bits, n=8 finishes within 257 tries, the mean of 200 runs at n=12 is within ±10% of the expected value)
 - `test/html.test.js`, `test/contrast.test.js`, `test/messages.test.js`, `test/i18n.test.js`, `test/format.test.js`: CSP, no external scripts, tab ARIA, dictionaries and page text, color contrast (4.5:1 and 3:1), formatting
-- `test/readme.test.js`: compares the README tables (expected ranges, examples, collision pairs, grid shapes) with the output of the computation module, and checks the headings, images and directory structure of both READMEs
+- `test/readme.test.js`: compares the README tables (expected ranges, examples, collision pairs, appending, birthday attack, grid shapes) with the output of the computation module, and checks the headings, images and directory structure of both READMEs
 
 ---
 
@@ -414,16 +502,20 @@ hashviz/
 │   │   ├── screenshot2.png  # Wang et al.'s collision pair (English)
 │   │   ├── screenshot3.png  # Avalanche with ToyHash16 (English)
 │   │   ├── screenshot4.png  # SHA-512 in 3D (English)
-│   │   └── screenshot5.png  # The SHAttered collision (English, dark)
+│   │   ├── screenshot5.png  # The SHAttered collision (English, dark)
+│   │   ├── screenshot6.png  # Appending the same data (English)
+│   │   └── screenshot7.png  # The Birthday attack tab (English)
 │   ├── screenshot.png       # The Avalanche tab
 │   ├── screenshot2.png      # Wang et al.'s collision pair
 │   ├── screenshot3.png      # Avalanche with ToyHash16
 │   ├── screenshot4.png      # SHA-512 in 3D
-│   └── screenshot5.png      # The SHAttered collision (dark)
+│   ├── screenshot5.png      # The SHAttered collision (dark)
+│   ├── screenshot6.png      # Appending the same data
+│   └── screenshot7.png      # The Birthday attack tab
 ├── js/                      # Scripts loaded by the page
 │   ├── app.js               # Page logic (tabs, inputs, results)
-│   ├── draw.js              # Drawing on the Canvas (2D grid and 3D cubes)
-│   ├── hashviz-core.js      # Computation (MD5, SHA family, ToyHash16, collision pairs, expected range, 3D layout)
+│   ├── draw.js              # Drawing on the Canvas (2D grid, 3D cubes, cumulative distribution chart)
+│   ├── hashviz-core.js      # Computation (MD5, SHA family, ToyHash16, collision pairs, internal states, birthday attack, 3D layout)
 │   ├── i18n.js              # Language choice and replacing the text in the HTML
 │   ├── messages.js          # Japanese and English text
 │   ├── theme-init.js        # Applies the saved theme before drawing

@@ -13,11 +13,14 @@ const DOCS = {
   ja: {
     file: 'README.md', switcher: '[English](README.en.md) · 日本語', day: '**Day056 - 生成AIで作るセキュリティツール100**',
     h1: '# HashViz - 教育用ハッシュ関数ビジュアライザー', shots: /^assets\/screenshot\d*\.png$/,
-    h2: ['🌐 デモページ', '📸 スクリーンショット', '✨ 機能', '📖 使い方', '🌊 アバランシェ効果', '💥 衝突の組', '🔍 可視化のしくみ', '🎮 ToyHash16',
+    h2: ['🌐 デモページ', '📸 スクリーンショット', '✨ 機能', '📖 使い方', '🌊 アバランシェ効果', '💥 衝突の組', '🎂 誕生日攻撃', '🔍 可視化のしくみ', '🎮 ToyHash16',
       '🎓 学習の進め方', '🎯 ユースケース', '🔬 技術的な説明', '🔒 セキュリティ', '⚠️ 注意と限界', '📝 開発経緯と実装メモ', '🧪 テスト', '🔗 参考',
       '📁 ディレクトリー構造', '💻 動作環境', '📄 ライセンス', '🛠️ このツールについて'],
     head: { theory: '| アルゴリズム | 出力のビット数 | 平均 | 標準偏差 | 約95%の範囲 |', example: '| アルゴリズム | 元の入力のダイジェスト | 変わったビット |',
-      pairs: '| 組 | アルゴリズム | 長さ | 違うバイト | 同じになるダイジェスト | 出典 |', grid: '| アルゴリズム | ビット数 | 2Dのマス目（列×行） |' },
+      pairs: '| 組 | アルゴリズム | 長さ | 違うバイト | 同じになるダイジェスト | 出典 |', grid: '| アルゴリズム | ビット数 | 2Dのマス目（列×行） |',
+      extend: '| 組 | 内部状態がそろうブロック | 後ろに足す | 前に足す |', birthday: '| 比べるビット数 | 16進の桁数 | 最初の衝突までの期待値 | 2^n |',
+      limits: '| アルゴリズム | ビット数 | 誕生日攻撃の目安 | 知られている衝突攻撃 |' },
+    keep: ['保たれる', '崩れる'], padding: (j) => `${j}（パディングを含む最後のブロック）`, noChain: 'なし（和の計算）', pow: (e) => `約2^${e}`, attackNone: '見つかっていない',
     range: (lo, hi) => `${lo}〜${hi}`, len: (a, b) => (a === b ? `${a}バイト` : `${a}バイトと${b}バイト`), glossary: (n) => `の${n}項目`,
     toy: '`045c`から`0458`', project: 'https://akademeia.info/?page_id=42163',
     // 長音のない表記・「わかる」の漢字書き（分ける・分かれるは漢字のまま）・事実と食い違う古い記述・使っていないライブラリー
@@ -28,12 +31,18 @@ const DOCS = {
   en: {
     file: 'README.en.md', switcher: 'English · [日本語](README.md)', day: '**Day056 - 100 Security Tools with Generative AI**',
     h1: '# HashViz - Educational Hash Function Visualizer', shots: /^assets\/en\/screenshot\d*\.png$/,
-    h2: ['🌐 Demo', '📸 Screenshots', '✨ Features', '📖 How to use', '🌊 Avalanche effect', '💥 Collision pairs', '🔍 How the visualization works',
+    h2: ['🌐 Demo', '📸 Screenshots', '✨ Features', '📖 How to use', '🌊 Avalanche effect', '💥 Collision pairs', '🎂 Birthday attack',
+      '🔍 How the visualization works',
       '🎮 ToyHash16', '🎓 Learning path', '🎯 Use cases', '🔬 Technical notes', '🔒 Security', '⚠️ Notes and limitations', '📝 Development notes',
       '🧪 Tests', '🔗 References', '📁 Directory structure', '💻 Requirements', '📄 License', '🛠️ About this tool'],
     head: { theory: '| Algorithm | Output bits | Mean | Standard deviation | About 95% |',
       example: '| Algorithm | Digest of the original input | Changed bits |',
-      pairs: '| Pair | Algorithm | Length | Differing bytes | Shared digest | Source |', grid: '| Algorithm | Bits | 2D grid (columns × rows) |' },
+      pairs: '| Pair | Algorithm | Length | Differing bytes | Shared digest | Source |', grid: '| Algorithm | Bits | 2D grid (columns × rows) |',
+      extend: '| Pair | Block where the internal states agree | Appended after | Added before |',
+      birthday: '| Bits compared | Hex digits | Expected tries until the first collision | 2^n |',
+      limits: '| Algorithm | Bits | Birthday attack | Known collision attack |' },
+    keep: ['Survives', 'Breaks'], padding: (j) => `${j} (the last block, with padding)`, noChain: 'none (a sum)',
+    pow: (e) => `about 2^${e}`, attackNone: 'none found',
     range: (lo, hi) => `${lo}-${hi}`, len: (a, b) => (a === b ? `${a} bytes` : `${a} bytes and ${b} byte`),
     glossary: (n) => `${n} entries`,
     toy: 'from `045c` into `0458`', project: 'https://akademeia.info/?page_id=42163',
@@ -96,7 +105,7 @@ test('冒頭の形（言語の切り替え・H1・バッジ5種・Dayの行）�
 test('画像: README から参照する画像はすべて実在し300KB以下。assets の PNG は README から参照されているものだけ', () => {
   for (const d of Object.values(DOCS)) {
     const refs = [...d.text.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((m) => m[1]);
-    assert.equal(refs.length, 5, d.file);
+    assert.equal(refs.length, 7, d.file);
     for (const r of refs) {
       assert.match(r, d.shots, r);
       const st = fs.statSync(path.join(ROOT, r));
@@ -154,7 +163,7 @@ test('衝突の組の表は、計算部の組（並び・アルゴリズム・�
 
 test('マス目と3Dの形の表は、計算部の gridShape・voxelShape と同じ。ToyHash16 の例と用語集の項目数も合う', async () => {
   for (const d of Object.values(DOCS)) {
-    const rows = table(section(d.text, d.h2[6]), d.head.grid);
+    const rows = table(section(d.text, d.h2[7]), d.head.grid);
     assert.deepEqual(rows.map((r) => r[0]), C.ALGOS, d.file);
     for (const [algo, n, g2, g3] of rows) {
       const g = C.gridShape(C.BITS[algo]);
@@ -221,3 +230,51 @@ test('表記: 禁止語がない。強調は1節に2カ所まで、箇条書き�
     assert.doesNotMatch(line, bad, line);
   }
 });
+
+test('同じデータを足したときの表は、計算部の内部状態の比べ方と、実際に足して計算した結果と同じ', async () => {
+  const hello = C.utf8('hello');
+  for (const d of Object.values(DOCS)) {
+    const rows = table(section(d.text, d.h2[5]), d.head.extend);
+    assert.equal(rows.length, C.SAMPLES.length, d.file);
+    for (const [k, s] of C.SAMPLES.entries()) {
+      const [, block, after, before] = rows[k];
+      const a = C.parseInput(s.a, s.format).bytes;
+      const b = C.parseInput(s.b, s.format).bytes;
+      if (C.CHAIN_ALGOS.includes(s.algo)) {
+        const r = C.chainCompare(s.algo, a, b);
+        assert.equal(block, r.suffixSafe ? String(r.converge) : d.padding(r.blocks), `${d.file} ${s.id}`);
+      } else {
+        assert.equal(block, d.noChain, `${d.file} ${s.id}`);
+      }
+      const same = async (x, y) => C.toHex(await C.digest(s.algo, x)) === C.toHex(await C.digest(s.algo, y));
+      const [sa, sb] = C.extendPair(a, b, hello, 'suffix');
+      const [pa, pb] = C.extendPair(a, b, hello, 'prefix');
+      assert.deepEqual([after, before], [d.keep[(await same(sa, sb)) ? 0 : 1], d.keep[(await same(pa, pb)) ? 0 : 1]], `${d.file} ${s.id}`);
+    }
+  }
+});
+
+test('誕生日攻撃の表は、計算部の期待値と、アルゴリズム全体の目安（BIRTHDAY_LIMITS）と同じ', () => {
+  for (const d of Object.values(DOCS)) {
+    const sec = section(d.text, d.h2[6]);
+    const rows = table(sec, d.head.birthday);
+    assert.deepEqual(rows.map((r) => Number(r[0])), [8, 16, 24, 32, 36], d.file);
+    for (const [n, hex, expected, all] of rows) {
+      assert.equal(Number(hex), Number(n) / 4, `${d.file} ${n}`);
+      assert.equal(expected, Math.round(C.birthdayExpected(Number(n))).toLocaleString('en-US'), `${d.file} ${n}`);
+      assert.equal(all, (2 ** Number(n)).toLocaleString('en-US'), `${d.file} ${n}`);
+    }
+    const limits = table(sec, d.head.limits);
+    assert.deepEqual(limits.map((r) => r[0]), C.BIRTHDAY_LIMITS.map((x) => x.algo), d.file);
+    for (const [k, x] of C.BIRTHDAY_LIMITS.entries()) {
+      const [, bits, birthday, attack] = limits[k];
+      assert.deepEqual([Number(bits), birthday], [x.bits, d.pow(x.birthday)], `${d.file} ${x.algo}`);
+      if (x.attack === null) assert.equal(attack, d.attackNone, `${d.file} ${x.algo}`);
+      else assert.ok(attack.startsWith(d.pow(x.attack)), `${d.file} ${x.algo}`);
+    }
+    // 計算部の選べるビット数の上限と、本文の「36ビットまで」がそろう
+    assert.equal(Math.max(...C.BIRTHDAY_BITS), 36);
+    assert.ok(d.text.includes(d.file === 'README.md' ? '36ビットまで' : 'up to 36'), d.file);
+  }
+});
+
