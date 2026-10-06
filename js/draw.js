@@ -317,5 +317,18 @@
     }
   }
 
-  globalThis.HashVizDraw = { grid, cubes, cdfChart, histogram, sacMatrix };
+  // 5×5 の identicon。背景は --icon-bg、色は色相 hue（彩度55%・明度38%）
+  function identicon(canvas, ic) {
+    const { ctx, w } = fit(canvas, 1);
+    ctx.fillStyle = css('--icon-bg');
+    ctx.fillRect(0, 0, w, w);
+    const pad = w * 0.1;
+    const cell = (w - pad * 2) / 5;
+    ctx.fillStyle = `hsl(${ic.hue}, 55%, 38%)`;
+    ic.cells.forEach((row, r) => row.forEach((on, c) => {
+      if (on) ctx.fillRect(pad + c * cell, pad + r * cell, cell + 0.5, cell + 0.5);
+    }));
+  }
+
+  globalThis.HashVizDraw = { grid, cubes, cdfChart, histogram, sacMatrix, identicon };
 })();

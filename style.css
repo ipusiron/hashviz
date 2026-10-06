@@ -37,6 +37,7 @@ html, body { margin: 0; padding: 0; }
   --sac-low: #2563eb;
   --sac-mid: #f1f3f6;
   --sac-high: #dc4a12;
+  --icon-bg: #f2f4f7;
   --shadow: 0 6px 18px rgba(23, 32, 42, 0.08);
   color-scheme: light;
 }
@@ -73,6 +74,7 @@ html, body { margin: 0; padding: 0; }
     --sac-low: #6aa5ff;
     --sac-mid: #222a33;
     --sac-high: #ff8a4c;
+    --icon-bg: #f2f4f7;
     --shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
     color-scheme: dark;
   }
@@ -109,6 +111,7 @@ html, body { margin: 0; padding: 0; }
   --sac-low: #6aa5ff;
   --sac-mid: #222a33;
   --sac-high: #ff8a4c;
+  --icon-bg: #f2f4f7;
   --shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
@@ -534,13 +537,15 @@ mark.chg,
 }
 
 .digest-fig,
-.dump-fig {
+.dump-fig,
+.art-fig {
   margin: 14px 0 0;
   min-width: 0;
 }
 
 .digest-fig figcaption,
-.dump-fig figcaption {
+.dump-fig figcaption,
+.art-fig figcaption {
   font-weight: 700;
 }
 
@@ -621,6 +626,39 @@ mark.chg,
 }
 
 .fold .hex { background: var(--card); }
+
+/* ========== 指紋の絵 ========== */
+.art-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* randomart は等幅で、行の高さを詰める。広さが足りなければ枠の中で横に送る */
+.art {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 15px;
+  line-height: 1.2;
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.icon {
+  width: 100px;
+  height: 100px;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.facts { padding-left: 1.4em; }
+.facts li { margin: 6px 0; }
 
 /* ========== Glossary ========== */
 .glossary { margin: 0; }
