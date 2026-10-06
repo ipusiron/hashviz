@@ -1,0 +1,223 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { read, core } from './load.js';
+
+const C = core();
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const html = read('index.html');
+
+const DOCS = {
+  ja: {
+    file: 'README.md', switcher: '[English](README.en.md) · 日本語', day: '**Day056 - 生成AIで作るセキュリティツール100**',
+    h1: '# HashViz - 教育用ハッシュ関数ビジュアライザー', shots: /^assets\/screenshot\d*\.png$/,
+    h2: ['🌐 デモページ', '📸 スクリーンショット', '✨ 機能', '📖 使い方', '🌊 アバランシェ効果', '💥 衝突の組', '🔍 可視化のしくみ', '🎮 ToyHash16',
+      '🎓 学習の進め方', '🎯 ユースケース', '🔬 技術的な説明', '🔒 セキュリティ', '⚠️ 注意と限界', '📝 開発経緯と実装メモ', '🧪 テスト', '🔗 参考',
+      '📁 ディレクトリー構造', '💻 動作環境', '📄 ライセンス', '🛠️ このツールについて'],
+    head: { theory: '| アルゴリズム | 出力のビット数 | 平均 | 標準偏差 | 約95%の範囲 |', example: '| アルゴリズム | 元の入力のダイジェスト | 変わったビット |',
+      pairs: '| 組 | アルゴリズム | 長さ | 違うバイト | 同じになるダイジェスト | 出典 |', grid: '| アルゴリズム | ビット数 | 2Dのマス目（列×行） |' },
+    range: (lo, hi) => `${lo}〜${hi}`, len: (a, b) => (a === b ? `${a}バイト` : `${a}バイトと${b}バイト`), glossary: (n) => `の${n}項目`,
+    toy: '`045c`から`0458`', project: 'https://akademeia.info/?page_id=42163',
+    // 長音のない表記・「わかる」の漢字書き（分ける・分かれるは漢字のまま）・事実と食い違う古い記述・使っていないライブラリー
+    forbidden: new RegExp(['ブラウザ(?!ー)', 'フォルダ(?!ー)', 'ディレクトリ(?!ー)', 'リポジトリ(?!ー)', 'ライブラリ(?!ー)', 'エディタ(?!ー)',
+      'サーバ(?!ー)', 'ユーザ(?!ー)', '(?<![自0-9０-９])分か(?!れ)', '全て', '既に', '模擬例', '9京', '数百KB', 'OrbitControls', '完整性', '商用利用',
+      'shattered\\.io', 'Three\\.js', 'js-md5'].join('|'))
+  },
+  en: {
+    file: 'README.en.md', switcher: 'English · [日本語](README.md)', day: '**Day056 - 100 Security Tools with Generative AI**',
+    h1: '# HashViz - Educational Hash Function Visualizer', shots: /^assets\/en\/screenshot\d*\.png$/,
+    h2: ['🌐 Demo', '📸 Screenshots', '✨ Features', '📖 How to use', '🌊 Avalanche effect', '💥 Collision pairs', '🔍 How the visualization works',
+      '🎮 ToyHash16', '🎓 Learning path', '🎯 Use cases', '🔬 Technical notes', '🔒 Security', '⚠️ Notes and limitations', '📝 Development notes',
+      '🧪 Tests', '🔗 References', '📁 Directory structure', '💻 Requirements', '📄 License', '🛠️ About this tool'],
+    head: { theory: '| Algorithm | Output bits | Mean | Standard deviation | About 95% |',
+      example: '| Algorithm | Digest of the original input | Changed bits |',
+      pairs: '| Pair | Algorithm | Length | Differing bytes | Shared digest | Source |', grid: '| Algorithm | Bits | 2D grid (columns × rows) |' },
+    range: (lo, hi) => `${lo}-${hi}`, len: (a, b) => (a === b ? `${a} bytes` : `${a} bytes and ${b} byte`),
+    glossary: (n) => `${n} entries`,
+    toy: 'from `045c` into `0458`', project: 'https://akademeia.info/?page_id=42163',
+    forbidden: /educational demo|9 quadrillion|OrbitControls|shattered\.io|Three\.js|js-md5|commercial use/i
+  }
+};
+for (const d of Object.values(DOCS)) d.text = read(d.file);
+
+const noCode = (md) => md.replace(/```[\s\S]*?```/g, '');
+const headings = (md) => noCode(md).split('\n').filter((l) => /^#{1,4} /.test(l));
+const h2 = (md) => headings(md).filter((l) => l.startsWith('## ')).map((l) => l.slice(3));
+
+function section(text, heading) {
+  const i = text.indexOf(`\n## ${heading}\n`);
+  assert.ok(i >= 0, heading);
+  const rest = text.slice(i + 1);
+  const end = rest.indexOf('\n## ', 3);
+  return end < 0 ? rest : rest.slice(0, end);
+}
+
+function table(text, firstHeader) {
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => l.startsWith(firstHeader));
+  assert.ok(start >= 0, firstHeader);
+  const rows = [];
+  for (let i = start + 2; i < lines.length && lines[i].startsWith('|'); i++) rows.push(lines[i].replace(/^\| | \|$/g, '').split(' | ').map((c) => c.trim()));
+  return rows;
+}
+const unquote = (s) => s.replace(/^`|`$/g, '');
+
+test('YAML メタデータの構造（キーの順、ブロック形式のリスト、固定の値）。YAML は README.md だけに置く', () => {
+  const m = DOCS.ja.text.match(/^<!--\n---\n([\s\S]*?)\n---\n-->\n/);
+  assert.ok(m, 'YAML block');
+  const keys = [...m[1].matchAll(/^([a-z_]+):/gm)].map((x) => x[1]);
+  assert.deepEqual(keys, ['id', 'slug', 'title', 'subtitle_ja', 'subtitle_en', 'description_ja', 'description_en', 'category_ja', 'category_en',
+    'difficulty', 'tags', 'repo_url', 'demo_url', 'hub']);
+  for (const k of ['category_ja', 'category_en', 'tags']) assert.match(m[1], new RegExp(`^${k}:\\n  - `, 'm'), k);
+  assert.match(m[1], /^id: day056$/m);
+  assert.match(m[1], /^slug: hashviz$/m);
+  assert.match(m[1], /^repo_url: "https:\/\/github.com\/ipusiron\/hashviz"$/m);
+  assert.match(m[1], /^demo_url: "https:\/\/ipusiron.github.io\/hashviz\/"$/m);
+  assert.match(m[1], /^hub: true$/m);
+  assert.doesNotMatch(DOCS.en.text, /^<!--\n---/);
+});
+
+test('冒頭の形（言語の切り替え・H1・バッジ5種・Dayの行）と、H2の並び。日英で見出しの数と階層がそろう', () => {
+  for (const d of Object.values(DOCS)) {
+    assert.ok(d.text.includes(`\n${d.switcher}\n`) || d.text.startsWith(`${d.switcher}\n`), d.file);
+    assert.ok(d.text.includes(`\n${d.h1}\n`), d.file);
+    assert.ok(d.text.includes(`\n${d.day}\n`), d.file);
+    for (const b of ['stars', 'forks', 'last-commit', 'license', 'GitHub%20Pages']) assert.ok(d.text.includes(b), `${d.file} ${b}`);
+    assert.deepEqual(h2(d.text), d.h2, d.file);
+    assert.ok(d.text.includes(`🔗 [${d.project}](${d.project})`), d.file);
+  }
+  const level = (md) => headings(md).map((l) => l.match(/^#+/)[0].length);
+  assert.deepEqual(level(DOCS.en.text), level(DOCS.ja.text));
+  assert.ok(headings(DOCS.ja.text).length >= 40);
+});
+
+test('画像: README から参照する画像はすべて実在し300KB以下。assets の PNG は README から参照されているものだけ', () => {
+  for (const d of Object.values(DOCS)) {
+    const refs = [...d.text.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((m) => m[1]);
+    assert.equal(refs.length, 5, d.file);
+    for (const r of refs) {
+      assert.match(r, d.shots, r);
+      const st = fs.statSync(path.join(ROOT, r));
+      assert.ok(st.size <= 300 * 1024, `${r} ${st.size}`);
+    }
+    const dir = d.file === 'README.md' ? 'assets' : 'assets/en';
+    const pngs = fs.readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith('.png')).map((f) => `${dir}/${f}`).sort();
+    assert.deepEqual(pngs, [...refs].sort(), dir);
+  }
+});
+
+test('アバランシェの理論の表は、計算部の二項分布の範囲と同じ', () => {
+  for (const d of Object.values(DOCS)) {
+    const rows = table(section(d.text, d.h2[4]), d.head.theory);
+    assert.deepEqual(rows.map((r) => r[0]), C.ALGOS, d.file);
+    for (const [algo, n, mean, sd, range] of rows) {
+      const r = C.binomialRange(C.BITS[algo]);
+      assert.deepEqual([Number(n), Number(mean), sd, range], [C.BITS[algo], r.mean, r.sd.toFixed(2), d.range(r.lo, r.hi)], `${d.file} ${algo}`);
+    }
+  }
+});
+
+test('hello world の例は、計算部のダイジェストと、0バイト目の0ビット目を反転したときの違うビット数と同じ', async () => {
+  const src = C.utf8('hello world');
+  const flipped = C.flipBit(src, 0, 0).bytes;
+  assert.equal(C.decodeUtf8(flipped), 'iello world');
+  for (const d of Object.values(DOCS)) {
+    const rows = table(section(d.text, d.h2[4]), d.head.example);
+    assert.deepEqual(rows.map((r) => r[0]), ['MD5', 'SHA-1', 'SHA-256', 'ToyHash16'], d.file);
+    for (const [algo, hex, changed] of rows) {
+      const a = await C.digest(algo, src);
+      const b = await C.digest(algo, flipped);
+      assert.equal(unquote(hex), C.toHex(a), `${d.file} ${algo}`);
+      assert.equal(changed, `${C.diffBits(a, b).count} / ${C.BITS[algo]}`, `${d.file} ${algo}`);
+    }
+  }
+});
+
+test('衝突の組の表は、計算部の組（並び・アルゴリズム・長さ・違うバイト数・同じになるダイジェスト）と同じ', async () => {
+  for (const d of Object.values(DOCS)) {
+    const rows = table(section(d.text, d.h2[5]), d.head.pairs);
+    assert.equal(rows.length, C.SAMPLES.length, d.file);
+    for (const [k, s] of C.SAMPLES.entries()) {
+      const [, algo, len, diffs, digest] = rows[k];
+      const a = C.parseInput(s.a, s.format).bytes;
+      const b = C.parseInput(s.b, s.format).bytes;
+      assert.equal(algo, s.algo, `${d.file} ${s.id}`);
+      assert.equal(len, d.len(a.length, b.length), `${d.file} ${s.id}`);
+      assert.equal(Number(diffs), C.byteDiff(a, b).positions.length, `${d.file} ${s.id}`);
+      assert.equal(unquote(digest), C.toHex(await C.digest(s.algo, a)), `${d.file} ${s.id}`);
+      assert.equal(unquote(digest), C.toHex(await C.digest(s.algo, b)), `${d.file} ${s.id}`);
+    }
+  }
+});
+
+test('マス目と3Dの形の表は、計算部の gridShape・voxelShape と同じ。ToyHash16 の例と用語集の項目数も合う', async () => {
+  for (const d of Object.values(DOCS)) {
+    const rows = table(section(d.text, d.h2[6]), d.head.grid);
+    assert.deepEqual(rows.map((r) => r[0]), C.ALGOS, d.file);
+    for (const [algo, n, g2, g3] of rows) {
+      const g = C.gridShape(C.BITS[algo]);
+      const v = C.voxelShape(C.BITS[algo]);
+      assert.deepEqual([Number(n), g2, g3], [C.BITS[algo], `${g.cols}×${g.rows}`, `${v.cols}×${v.rows}×${v.layers}`], `${d.file} ${algo}`);
+    }
+    assert.ok(d.text.includes(d.toy), d.file);
+    const dt = (html.match(/<dt data-i18n="gl\./g) || []).length;
+    assert.equal(dt, 19);
+    assert.ok(d.text.includes(d.glossary(dt)), d.file);
+  }
+  const src = C.utf8('hello world');
+  assert.deepEqual([C.toHex(await C.digest('ToyHash16', src)), C.toHex(await C.digest('ToyHash16', C.flipBit(src, 3, 2).bytes))], ['045c', '0458']);
+});
+
+// リポジトリーのファイル（.git・.claude・node_modules を除く）
+function files(dir = '') {
+  const out = [];
+  for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+    if (['.git', '.claude', 'node_modules'].includes(e.name)) continue;
+    const rel = dir ? `${dir}/${e.name}` : e.name;
+    if (e.isDirectory()) out.push(`${rel}/`, ...files(rel));
+    else out.push(rel);
+  }
+  return out;
+}
+
+test('ディレクトリー構造: すべてのファイルとディレクトリーが載り、全行に説明があり、# の桁がそろう', () => {
+  const all = files();
+  for (const d of Object.values(DOCS)) {
+    const tree = d.text.match(/```text\nhashviz\/\n([\s\S]*?)```/)[1].split('\n').filter(Boolean);
+    const cols = new Set();
+    const listed = [];
+    const stack = [];
+    for (const line of tree) {
+      const m = line.match(/^((?:│ {3}| {4})*)[├└]── (\S+)\s+# \S/);
+      assert.ok(m, `${d.file}: ${line}`);
+      cols.add([...line].indexOf('#'));
+      const depth = [...m[1]].length / 4;
+      stack.length = depth;
+      stack.push(m[2]);
+      listed.push(stack.join(''));
+    }
+    assert.equal(cols.size, 1, d.file);
+    assert.deepEqual([...listed].sort(), [...all].sort(), d.file);
+  }
+});
+
+test('表記: 禁止語がない。強調は1節に2カ所まで、箇条書きの先頭を太字にしない', () => {
+  for (const d of Object.values(DOCS)) {
+    const body = noCode(d.text);
+    assert.doesNotMatch(body, d.forbidden, d.file);
+    for (const h of d.h2) {
+      const n = (section(body, h).match(/\*\*/g) || []).length / 2;
+      assert.ok(n <= 2, `${d.file} ${h}: ${n}`);
+    }
+    assert.doesNotMatch(body, /^\s*- \*\*/m, d.file);
+  }
+  // 日本語と英数字のあいだに半角空白を入れない（ライセンスの定型文を除く）
+  const J = '[\\u3040-\\u30ff\\u3400-\\u9fff\\uff00-\\uffef]';
+  const bad = new RegExp(`${J} [A-Za-z0-9(\`]|[A-Za-z0-9)\`] ${J}`);
+  for (const line of noCode(DOCS.ja.text).split('\n')) {
+    if (line.startsWith('MIT License - ')) continue;
+    assert.doesNotMatch(line, bad, line);
+  }
+});
