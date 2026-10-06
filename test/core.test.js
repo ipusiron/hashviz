@@ -386,3 +386,55 @@ test('誕生日攻撃: n=12 で200回試した平均は、理論の期待値の�
   assert.deepEqual([seen, pauses], [[64, 128, 192], 3]);
   await assert.rejects(C.birthdaySearch({ algo: 'ToyHash16', n: 8, seed: 'x' }), /unknown algorithm/);
 });
+
+// ===== 第3弾: ラウンド数を縮めた SHA-256・拡散の測定 =====
+test('ラウンド数を縮めた SHA-256: 64ラウンドは Node の crypto と一致、0ラウンドは初期値の2倍、範囲外は例外', () => {
+  const rand = C.seededBytes(11);
+  for (const len of [0, 3, 55, 56, 63, 64, 65, 120, 1000]) {
+    const b = rand(len);
+    assert.equal(C.toHex(C.sha256Rounds(b, 64)), nodeHash('SHA-256', b), String(len));
+  }
+  const iv = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  assert.equal(C.toHex(C.sha256Rounds(new Uint8Array(0), 0)), iv.map((x) => ((x * 2) >>> 0).toString(16).padStart(8, '0')).join(''));
+  assert.throws(() => C.sha256Rounds(new Uint8Array(1), 65), /bad rounds/);
+  assert.throws(() => C.sha256Rounds(new Uint8Array(1), 1.5), /bad rounds/);
+  assert.notEqual(C.toHex(C.sha256Rounds(C.utf8('abc'), 63)), C.toHex(C.sha256Rounds(C.utf8('abc'), 64)));
+  // 種つきの乱数は同じ種なら同じ並び
+  assert.deepEqual(C.seededBytes(5)(16), C.seededBytes(5)(16));
+  assert.notDeepEqual(C.seededBytes(5)(16), C.seededBytes(6)(16));
+});
+
+test('二項分布の確率: 合計が1で、B(16, 1/2) の8は C(16,8)/2^16', () => {
+  for (const n of [16, 128, 512]) assert.ok(Math.abs(C.binomialPmf(n).reduce((s, x) => s + x, 0) - 1) < 1e-9, String(n));
+  assert.ok(Math.abs(C.binomialPmf(16)[8] - 12870 / 65536) < 1e-12);
+});
+
+test('拡散の測定: SHA-256 と MD5 は理想に近く、ToyHash16 と1〜4ラウンドの SHA-256 は偏る（種つきの乱数、各100個の入力）', async () => {
+  const run = async (algo, rounds = 64) => C.diffusionSummary(await C.diffusionExperiment({ algo, rounds, inputs: 100, randomBytes: C.seededBytes(7) }));
+  for (const algo of ['SHA-256', 'MD5', 'SHA-1']) {
+    const r = await C.diffusionExperiment({ algo, inputs: 100, randomBytes: C.seededBytes(7) });
+    const s = C.diffusionSummary(r);
+    assert.equal(r.m, 64);
+    assert.equal(r.n, C.BITS[algo]);
+    assert.equal(r.hist.reduce((x, y) => x + y, 0), 6400, algo);
+    assert.equal(r.counts.reduce((x, y) => x + y, 0), r.hist.reduce((x, y, d) => x + y * d, 0), algo);
+    assert.ok(Math.abs(s.mean - s.theoryMean) < 1, `${algo} ${s.mean}`);
+    assert.ok(Math.abs(s.sd - s.theorySd) / s.theorySd < 0.05, `${algo} ${s.sd}`);
+    assert.ok(Math.abs(s.within - 0.95) < 0.03, `${algo} ${s.within}`);
+    assert.ok(Math.abs(s.sacMeanDev / s.sacExpectedDev - 1) < 0.05, `${algo} ${s.sacMeanDev}`);
+    assert.deepEqual([s.zeroCells, s.oneCells], [0, 0], algo);
+  }
+  const toy = await run('ToyHash16');
+  assert.ok(toy.mean < 3 && toy.within < 0.3 && toy.zeroCells > 500, JSON.stringify(toy));
+  const zeros = [];
+  for (const r of [1, 2, 4, 8, 64]) zeros.push((await run('SHA-256-R', r)).zeroCells);
+  assert.ok(zeros[0] > 15000 && zeros[0] > zeros[1] && zeros[1] > zeros[2] && zeros[2] > 1000, zeros.join());
+  assert.deepEqual(zeros.slice(3), [0, 0]);
+  // 64ラウンドの自前の SHA-256 は、Web Crypto の SHA-256 と同じ結果になる
+  const a = await C.diffusionExperiment({ algo: 'SHA-256-R', rounds: 64, inputs: 20, randomBytes: C.seededBytes(3) });
+  const b = await C.diffusionExperiment({ algo: 'SHA-256', inputs: 20, randomBytes: C.seededBytes(3) });
+  assert.deepEqual([...a.counts], [...b.counts]);
+  assert.throws(() => C.hasher('SHA-3'), /unknown algorithm/);
+  assert.deepEqual([C.DIFF_ALGOS, C.DIFF_ROUNDS, C.DIFF_INPUTS], [['MD5', 'SHA-1', 'SHA-256', 'SHA-512', 'ToyHash16', 'SHA-256-R'],
+    [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64], [100, 300, 1000]]);
+});

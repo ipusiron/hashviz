@@ -176,6 +176,62 @@
     return sha1StateBytes(chain[chain.length - 1]);
   };
 
+  // ===== SHA-256（FIPS 180-4） =====
+  // 通常のダイジェストは Web Crypto で計算する。ここではラウンド数を縮めて拡散を調べるために自前で持つ
+  const SHA256_IV = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const SHA256_K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ];
+  const rotr = (x, n) => ((x >>> n) | (x << (32 - n))) >>> 0;
+
+  // 64バイトの1ブロックを rounds ラウンドだけ圧縮する（最後に初期の状態を足す。rounds が64なら通常の SHA-256）
+  function sha256Compress(state, block, offset = 0, rounds = 64) {
+    const w = new Array(64);
+    for (let i = 0; i < 16; i++) {
+      const o = offset + i * 4;
+      w[i] = ((block[o] << 24) | (block[o + 1] << 16) | (block[o + 2] << 8) | block[o + 3]) >>> 0;
+    }
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = state;
+    for (let i = 0; i < rounds; i++) {
+      const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + SHA256_K[i] + w[i]) >>> 0;
+      const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = (d + t1) >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (t1 + t2) >>> 0;
+    }
+    return [a, b, c, d, e, f, g, h].map((x, i) => (state[i] + x) >>> 0);
+  }
+
+  // ラウンド数を rounds（0〜64）に縮めた SHA-256。パディングは SHA-1 と同じ形
+  function sha256Rounds(bytes, rounds = 64) {
+    if (!Number.isInteger(rounds) || rounds < 0 || rounds > 64) throw new Error(`bad rounds: ${rounds}`);
+    const p = sha1Pad(bytes);
+    let st = SHA256_IV.slice();
+    for (let o = 0; o < p.length; o += 64) st = sha256Compress(st, p, o, rounds);
+    const out = new Uint8Array(32);
+    st.forEach((x, i) => {
+      for (let j = 0; j < 4; j++) out[i * 4 + j] = (x >>> (24 - 8 * j)) & 0xff;
+    });
+    return out;
+  }
+
   // ===== ブロックごとの内部状態の比べ方（MD5・SHA-1） =====
   const CHAINS = {
     MD5: { pad: md5Pad, chain: md5Chain, bytes: md5StateBytes },
@@ -680,8 +736,116 @@
     return { count: s.length, mean, median: mid, min: s[0], max: s[s.length - 1], expected: birthdayExpected(n), ratio: mean / birthdayExpected(n) };
   }
 
+  // ===== 拡散の測定（統計アバランシェ・SAC 行列） =====
+  // ランダムな8バイトの入力の各ビットを1つずつ反転し、出力のどのビットが変わったかを数える
+  const DIFF_ALGOS = ['MD5', 'SHA-1', 'SHA-256', 'SHA-512', 'ToyHash16', 'SHA-256-R'];
+  const DIFF_ROUNDS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
+  const DIFF_INPUTS = [100, 300, 1000];
+  const DIFF_INPUT_BYTES = 8;
+
+  // 種つきの乱数（mulberry32）。n バイトを返す関数を作る（テストで同じ結果を出すため）
+  function seededBytes(seed) {
+    let s = seed >>> 0;
+    const next = () => {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) & 0xff;
+    };
+    return (n) => Uint8Array.from({ length: n }, next);
+  }
+
+  // algo のハッシュを計算する関数。SHA-256-R はラウンド数を rounds に縮めた自前の SHA-256
+  function hasher(algo, rounds = 64) {
+    if (algo === 'SHA-256-R') return async (b) => sha256Rounds(b, rounds);
+    if (!BITS[algo]) throw new Error(`unknown algorithm: ${algo}`);
+    return (b) => digest(algo, b);
+  }
+
+  // inputs 個のランダムな入力について、64ビットを1つずつ反転する（64 × inputs 組）。
+  // counts[i × n + j] は「入力ビット i を反転したら出力ビット j が変わった」回数、hist[d] は違うビットが d 個だった組の数
+  async function diffusionExperiment({ algo, rounds = 64, inputs, randomBytes, pause }) {
+    const H = hasher(algo, rounds);
+    const m = DIFF_INPUT_BYTES * 8;
+    let n = 0;
+    let counts = null;
+    let hist = null;
+    for (let t = 0; t < inputs; t++) {
+      const x = randomBytes(DIFF_INPUT_BYTES);
+      const variants = [x];
+      for (let i = 0; i < m; i++) {
+        const y = Uint8Array.from(x);
+        y[i >> 3] ^= 0x80 >> (i & 7);
+        variants.push(y);
+      }
+      const ds = await Promise.all(variants.map(H));
+      if (!counts) {
+        n = ds[0].length * 8;
+        counts = new Uint32Array(m * n);
+        hist = new Uint32Array(n + 1);
+      }
+      for (let i = 0; i < m; i++) {
+        let d = 0;
+        const row = i * n;
+        for (let k = 0; k < ds[0].length; k++) {
+          const v = ds[0][k] ^ ds[i + 1][k];
+          if (!v) continue;
+          for (let j = 0; j < 8; j++) {
+            if ((v >> (7 - j)) & 1) {
+              counts[row + k * 8 + j] += 1;
+              d += 1;
+            }
+          }
+        }
+        hist[d] += 1;
+      }
+      if (pause) await pause();
+    }
+    return { algo, rounds, m, n, inputs, counts, hist, pairs: m * inputs };
+  }
+
+  // 二項分布 B(n, 1/2) の確率（k = 0〜n）
+  function binomialPmf(n) {
+    const lf = [0];
+    for (let k = 1; k <= n; k++) lf[k] = lf[k - 1] + Math.log(k);
+    return Array.from({ length: n + 1 }, (_, k) => Math.exp(lf[n] - lf[k] - lf[n - k] - n * Math.LN2));
+  }
+
+  // 実験のまとめ。sacExpectedDev は理想的なハッシュでの平均の |P−1/2| の目安（0.5・√(2/(πT)) ≒ 0.399/√T）
+  function diffusionSummary(r) {
+    let sum = 0;
+    let sq = 0;
+    for (let d = 0; d <= r.n; d++) {
+      sum += d * r.hist[d];
+      sq += d * d * r.hist[d];
+    }
+    const mean = sum / r.pairs;
+    const range = binomialRange(r.n);
+    let within = 0;
+    for (let d = range.lo; d <= range.hi; d++) within += r.hist[d];
+    let dev = 0;
+    let maxDev = 0;
+    let zero = 0;
+    let one = 0;
+    for (const c of r.counts) {
+      const e = Math.abs(c / r.inputs - 0.5);
+      dev += e;
+      maxDev = Math.max(maxDev, e);
+      if (c === 0) zero += 1;
+      if (c === r.inputs) one += 1;
+    }
+    return {
+      mean, sd: Math.sqrt(Math.max(0, sq / r.pairs - mean * mean)), theoryMean: r.n / 2, theorySd: Math.sqrt(r.n) / 2, range, within: within / r.pairs,
+      sacMeanDev: dev / r.counts.length, sacMaxDev: maxDev, sacExpectedDev: 0.5 * Math.sqrt(2 / (Math.PI * r.inputs)), zeroCells: zero, oneCells: one,
+      cells: r.counts.length
+    };
+  }
+
   globalThis.HashVizCore = {
     ALGOS, BITS, FORMATS, MAX_BYTES, SAMPLES,
+    sha256Rounds, sha256Compress, DIFF_ALGOS, DIFF_ROUNDS, DIFF_INPUTS, DIFF_INPUT_BYTES, seededBytes, hasher, diffusionExperiment,
+    binomialPmf, diffusionSummary,
     md5, md5Pad, md5Compress, md5Chain, md5StateBytes, toyHash16, digest, compareAll,
     sha1, sha1Pad, sha1Compress, sha1Chain, sha1StateBytes, CHAIN_ALGOS, concatBytes, extendPair, chainCompare,
     BIRTHDAY_BITS, BIRTHDAY_ALGOS, BIRTHDAY_LIMITS, truncateBits, birthdayExpected, birthdayCdf, birthdayMessage, birthdaySearch, birthdaySummary,
