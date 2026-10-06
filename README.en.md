@@ -14,7 +14,7 @@ HashViz is an educational tool for checking the properties of hash functions as 
 
 In the Collisions tab, you can compute real collision pairs found by researchers right in this page: for MD5, the pair shown by Wang et al. in 2004 (128 bytes), a single-block pair (64 bytes) and two pairs of printable strings (72 and 128 characters); for SHA-1, the first 320 bytes of the two SHAttered PDFs. With the other algorithms, the same pairs give completely different digests. You can also add the same text before or after both inputs and check whether the collision survives, side by side with the internal state after each block.
 
-In the Birthday attack tab, compare only the first n bits of the digest, measure how many messages it takes to find two with the same value, and compare that with the theoretical expectation.
+In the Birthday attack tab, compare only the first n bits of the digest, measure how many messages it takes to find two with the same value, and compare that with the theoretical expectation. In the Diffusion tab, flip the bits of many random inputs one at a time and draw the distribution of differing bits and the SAC matrix (input bit × output bit). You can also reduce the rounds of SHA-256 to watch diffusion spread.
 
 The aim is to let students and engineers who are starting out in cryptography and security try out, hands-on, properties of hash functions that are hard to picture from text and formulas alone. Nothing is sent over the network.
 
@@ -58,6 +58,14 @@ Try it directly in your browser.
 >
 >*The Birthday attack tab (first 20 bits of SHA-256, 30 runs; the cumulative distribution of tries against the theory)*
 
+>![Diffusion (SHA-256 reduced to 4 rounds: the distribution departs from the binomial and the SAC matrix stays biased)](assets/en/screenshot8.png)
+>
+>*Diffusion (SHA-256 reduced to 4 rounds: the distribution departs from the binomial and the SAC matrix stays biased)*
+
+>![Diffusion (standard SHA-256: the distribution matches the binomial and the SAC matrix is nearly uniform)](assets/en/screenshot9.png)
+>
+>*Diffusion (standard SHA-256: the distribution matches the binomial and the SAC matrix is nearly uniform)*
+
 ---
 
 ## ✨ Features
@@ -70,6 +78,13 @@ Try it directly in your browser.
 - Compares the number and share of differing bits with the range expected from an ideal hash (about 95% of the binomial distribution B(n, 1/2))
 - Moves the flipped position with "Previous bit", "Next bit" and "Random position"
 - Explains out-of-range positions and unreadable input instead of rounding them
+
+### Diffusion
+
+- Flips each of the 64 bits of 100-1,000 random 8-byte inputs in turn and counts how the output changes
+- Overlays the histogram of differing bits with the expected counts of the binomial distribution (statistical avalanche)
+- Draws the share of changes for each input bit × output bit as a heat map (SAC matrix)
+- Algorithms: MD5, SHA-1, SHA-256, SHA-512, ToyHash16, and SHA-256 with a chosen number of rounds (1-64)
 
 ### Visualization
 
@@ -114,6 +129,12 @@ Try it directly in your browser.
 3. Check in the table which bit of which character changed
 4. Check whether the number of differing bits falls within the expected range. Move the position with "Next bit" and compare a few times
 5. Switch the algorithm to ToyHash16 and see that hardly any bits change
+
+### The Diffusion tab
+
+1. Choose the algorithm and the number of random inputs, and press "Measure"
+2. Check that the histogram matches the binomial line and that the SAC matrix is nearly the middle color
+3. Switch to ToyHash16 or to 1, 2 and 4 rounds of "SHA-256 (choose the rounds)" and compare how the biases appear
 
 ### The Visualize tab
 
@@ -167,6 +188,35 @@ Flipping bit 0 of byte 0 of `hello world` (`h`, 0x68) gives `iello world`. The n
 | SHA-1 | `2aae6c35c94fcfb415dbe95f408b9ce91ee846ed` | 88 / 160 |
 | SHA-256 | `b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9` | 126 / 256 |
 | ToyHash16 | `045c` | 1 / 16 |
+
+---
+
+## 🌀 Diffusion
+
+In a single avalanche, the number of changed bits may fall inside the range or outside it by chance. The Diffusion tab flips each of the 64 bits of random 8-byte inputs in turn and counts over many pairs.
+
+- Overlays the histogram of differing bits with the expected counts of the binomial distribution B(n, 1/2) (statistical avalanche)
+- Draws the share P(i, j) of flips of input bit i that changed output bit j as a 64×n heat map (SAC matrix). For an ideal hash every cell is close to 1/2, and with T inputs the mean deviation of P from 1/2 is about 0.399/√T
+
+The results of measuring 100 inputs (6,400 pairs) with a random generator fixed to seed 7 (`test/readme.test.js` computes the same values to check them):
+
+| Algorithm | Mean differing bits | Share within the 95% range | Mean deviation of P from 1/2 | Cells that never changed |
+|---|---|---|---|---|
+| MD5 | 64.06 | 96.2% | 0.0403 | 0 / 8,192 |
+| SHA-1 | 80.13 | 94.9% | 0.0393 | 0 / 10,240 |
+| SHA-256 | 128.10 | 96.3% | 0.0398 | 0 / 16,384 |
+| SHA-512 | 256.04 | 95.3% | 0.0396 | 0 / 32,768 |
+| ToyHash16 | 2.00 | 14.0% | 0.4403 | 615 / 1,024 |
+| SHA-256 (1 round) | 2.02 | 0.0% | 0.4971 | 15,950 / 16,384 |
+| SHA-256 (2 rounds) | 14.50 | 0.0% | 0.4688 | 13,677 / 16,384 |
+| SHA-256 (4 rounds) | 71.83 | 0.2% | 0.2787 | 5,653 / 16,384 |
+| SHA-256 (8 rounds) | 128.03 | 96.5% | 0.0396 | 0 / 16,384 |
+
+- With 100 inputs the reference value is 0.399/√100 ≈ 0.0399. MD5, SHA-1 and SHA-2 are close to it, with no cell that never changed
+- ToyHash16 is a sum, so flipping one input bit only adds or subtracts a power of two, and the change reaches only the few bits the carry or borrow touches
+- With fewer SHA-256 rounds, at 1-4 rounds the input bits reach only part of the output, leaving stripes and blue areas in the matrix. With the way this page measures (the 8-byte input goes into the first two words of the message), the statistics get close to the ideal at 8 rounds
+
+**Statistics close to the ideal do not mean resistance to attacks.** The remaining rounds are also a margin against attacks that statistics cannot see (such as differential attacks).
 
 ---
 
@@ -298,11 +348,13 @@ This tool is designed so that you can learn about cryptographic hash functions s
 
 - Flip only one bit of the input and compute the hash again
 - Compare the number of changed bits with the expected range (the binomial distribution)
+- In the Diffusion tab, check that the distribution over many inputs matches the binomial distribution
 - Goal: experience the unpredictability and strong diffusion of hash functions
 
 ### Step 3: Compare with a weak hash (ToyHash16)
 
 - Do the same with ToyHash16 and see that hardly any bits change
+- In the Diffusion tab, look at the biases in the SAC matrices of ToyHash16 and of SHA-256 with reduced rounds
 - Check the known collision pair (`"AB"` and `"\x83"`)
 - Goal: understand the properties a good hash needs by contrast with a weak one
 
@@ -334,6 +386,7 @@ This tool is designed so that you can learn about cryptographic hash functions s
 - When studying for security certifications, learners check the differences between one-wayness, second-preimage resistance and collision resistance with the glossary and the Collisions tab. Reading what "collision resistance is broken" means after seeing a real pair sticks better than memorizing the words
 - A teacher projects the Wang et al. or SHAttered pair and demonstrates in class that the digests are the same while the data differ
 - In a probability or statistics class, try the birthday paradox dozens of times with hashes instead of the birthdays in the classroom, and compare the measured distribution with the theoretical curve
+- In a cryptography class, show with the SAC matrices of SHA-256 at 1, 2, 4 and 8 rounds how diffusion spreads as rounds are stacked. It also helps explain that good statistics and security are different things
 
 ### Work
 
@@ -390,6 +443,12 @@ This tool is designed so that you can learn about cryptographic hash functions s
 
 - The statistics table (number of 1s, balance of 0s and 1s [entropy], runs of the same bit, distinct byte values) counts the 0s and 1s within one digest. It does not measure the strength of the hash
 
+### Diffusion
+
+- To choose the number of rounds, SHA-256 is also implemented in this tool from FIPS 180-4 (tests check that 64 rounds give the same values as Web Crypto). The output of the reduced version is the initial value plus the state after r rounds
+- Input bit i is bit (i mod 8) + 1 from the top of byte i ÷ 8 of the 8 bytes. Each input is hashed 65 times (the original and the 64 flips)
+- The random numbers come from `crypto.getRandomValues` on the page and from a seeded generator (mulberry32) in the tests
+
 ### Internal states and the birthday attack
 
 - To show the internal states, SHA-1 is also implemented in this tool from FIPS 180-4 (the digest itself is still computed with Web Crypto). For both MD5 and SHA-1, the state after each block of the padded message is shown in the same byte order as the digest
@@ -416,6 +475,7 @@ This tool is designed so that you can learn about cryptographic hash functions s
 - This tool cannot read files. Paste text, hex or Base64 into the inputs
 - SHA-3, BLAKE2 and others are not covered (the browser's Web Crypto cannot compute them)
 - The Birthday attack tab searches for collisions in the first n bits (up to 36) of the digest; it does not make collisions of the whole digest. The speed depends on the browser and the device
+- The Diffusion tab measures only 8-byte inputs. With other input lengths or placements, the results for reduced rounds also change
 - The Collisions tab computes pairs found by researchers to check them; it cannot make new collisions
 - The expected range (about 95%) is a statistical guide. A single try outside it does not mean the hash is weak
 - The 3D picture places the sequence of bits in space; it does not represent the internal structure of the hash function
@@ -455,8 +515,9 @@ npm test
 - Runs with `node --test` on Node.js 22 or later, with no dependencies (no `npm install` needed)
 - Runs on GitHub Actions for every push and pull request
 - `test/core.test.js`: MD5 (the RFC 1321 test suite, and inputs with bytes 0x80 and above compared with Node.js `crypto`), the SHA family, ToyHash16, the collision pairs (they collide only under their target algorithm; positions of the differing bytes), input parsing, one-bit flips, the binomial range (compared with an exact BigInt computation), statistics, the grid and 3D layout and projection, SHA-1 (the FIPS 180 examples and Node.js `crypto`), the internal states after each block and the results of appending or prepending (compared with Node.js `crypto`), and the birthday search (the pair found matches only in the first n bits, n=8 finishes within 257 tries, the mean of 200 runs at n=12 is within ±10% of the expected value)
+- `test/core.test.js` (continued): SHA-256 with reduced rounds (64 rounds match Node.js `crypto`) and the diffusion measurement (with a seeded generator, SHA-256, MD5 and SHA-1 are close to the reference while ToyHash16 and 1-4-round SHA-256 are biased)
 - `test/html.test.js`, `test/contrast.test.js`, `test/messages.test.js`, `test/i18n.test.js`, `test/format.test.js`: CSP, no external scripts, tab ARIA, dictionaries and page text, color contrast (4.5:1 and 3:1), formatting
-- `test/readme.test.js`: compares the README tables (expected ranges, examples, collision pairs, appending, birthday attack, grid shapes) with the output of the computation module, and checks the headings, images and directory structure of both READMEs
+- `test/readme.test.js`: compares the README tables (expected ranges, examples, collision pairs, appending, birthday attack, diffusion, grid shapes) with the output of the computation module, and checks the headings, images and directory structure of both READMEs
 
 ---
 
@@ -504,18 +565,22 @@ hashviz/
 │   │   ├── screenshot4.png  # SHA-512 in 3D (English)
 │   │   ├── screenshot5.png  # The SHAttered collision (English, dark)
 │   │   ├── screenshot6.png  # Appending the same data (English)
-│   │   └── screenshot7.png  # The Birthday attack tab (English)
+│   │   ├── screenshot7.png  # The Birthday attack tab (English)
+│   │   ├── screenshot8.png  # Diffusion of 4-round SHA-256 (English)
+│   │   └── screenshot9.png  # Diffusion of standard SHA-256 (English)
 │   ├── screenshot.png       # The Avalanche tab
 │   ├── screenshot2.png      # Wang et al.'s collision pair
 │   ├── screenshot3.png      # Avalanche with ToyHash16
 │   ├── screenshot4.png      # SHA-512 in 3D
 │   ├── screenshot5.png      # The SHAttered collision (dark)
 │   ├── screenshot6.png      # Appending the same data
-│   └── screenshot7.png      # The Birthday attack tab
+│   ├── screenshot7.png      # The Birthday attack tab
+│   ├── screenshot8.png      # Diffusion of 4-round SHA-256
+│   └── screenshot9.png      # Diffusion of standard SHA-256
 ├── js/                      # Scripts loaded by the page
 │   ├── app.js               # Page logic (tabs, inputs, results)
-│   ├── draw.js              # Drawing on the Canvas (2D grid, 3D cubes, cumulative distribution chart)
-│   ├── hashviz-core.js      # Computation (MD5, SHA family, ToyHash16, collision pairs, internal states, birthday attack, 3D layout)
+│   ├── draw.js              # Drawing on the Canvas (2D grid, 3D cubes, charts, SAC matrix)
+│   ├── hashviz-core.js      # Computation (MD5, SHA family, ToyHash16, collision pairs, internal states, birthday attack, diffusion, 3D layout)
 │   ├── i18n.js              # Language choice and replacing the text in the HTML
 │   ├── messages.js          # Japanese and English text
 │   ├── theme-init.js        # Applies the saved theme before drawing
