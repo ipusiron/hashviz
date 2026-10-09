@@ -318,3 +318,27 @@ test('指紋の絵の節: 図19の11件の指紋は計算部の LOSS_FIG19 と�
     for (const x of ['6%', '10%', '12%', '14%', '17%', '21%', '35%', '54%']) assert.ok(body.includes(`| ${x} |`), `${d.file} ${x}`);
   }
 });
+
+test('このツールならではの使い方の数値は計算部の出力と同じ（日英）', async () => {
+  const [ja, en] = [DOCS.ja.text, DOCS.en.text];
+  const n28 = Math.round(C.birthdayExpected(28)).toLocaleString('en-US');
+  assert.equal(n28, '20,534');
+  assert.ok(ja.includes(`16進7桁（28ビット）なら、約${n28}個で最初の重複が見込まれる`));
+  assert.ok(en.includes(`With 7 hex digits (28 bits), the first duplicate is expected after about ${n28} values`));
+  const r = C.binomialRange(256);
+  assert.deepEqual([r.mean, r.sd, r.lo, r.hi], [128, 8, 112, 144]);
+  assert.ok(ja.includes(`二項分布B(256, 1/2)の平均${r.mean}・標準偏差${r.sd}・95%の範囲${r.lo}〜${r.hi}`));
+  assert.ok(en.includes(`B(256, 1/2): mean ${r.mean}, standard deviation ${r.sd}, 95% range ${r.lo}–${r.hi}`));
+  assert.equal(C.LOSS_FIG19.length, 11);
+  assert.equal(C.ART_W * C.ART_H, 153);
+  assert.ok(ja.includes(`指紋の絵（${C.ART_W}×${C.ART_H}＝${C.ART_W * C.ART_H}マス）で、別の指紋なのに同じ絵になる${C.LOSS_FIG19.length}件`));
+  assert.ok(en.includes(`the ${C.LOSS_FIG19.length} different fingerprints`) && en.includes(`${C.ART_W} × ${C.ART_H} = ${C.ART_W * C.ART_H}-cell`));
+  const toy = (s) => C.toHex(C.toyHash16(C.utf8(s)));
+  assert.deepEqual(['listen', 'silent', 'enlist', 'Listen'].map(toy), ['028f', '028f', '028f', '026f']);
+  for (const d of [ja, en]) assert.ok(d.includes('`028f`') && d.includes('`026f`'));
+  const zero = async (rounds) => C.diffusionSummary(await C.diffusionExperiment({ algo: 'SHA-256-R', rounds, inputs: 100, randomBytes: C.seededBytes(7) }));
+  const [r1, r8] = [await zero(1), await zero(8)];
+  assert.deepEqual([r1.zeroCells, r1.cells, r8.zeroCells], [15950, 16384, 0]);
+  assert.ok(ja.includes('一度も変わらないマスが1ラウンドで16,384マス中15,950、8ラウンドで0になる'));
+  assert.ok(en.includes('the cells that never change drop from 15,950 of 16,384 at 1 round to 0 at 8 rounds'));
+});

@@ -466,6 +466,14 @@ This tool is designed so that you can learn about cryptographic hash functions s
 
 ## 🎯 Use cases
 
+### Ways of using this tool in particular
+
+- Choosing the length of IDs and short hashes: people who design systems that hand out random values, such as member numbers, coupon codes or short URLs, use the Birthday attack tab to estimate how many values can be handed out before the first duplicate. With 7 hex digits (28 bits), the first duplicate is expected after about 20,534 values. The same calculation shows why Git lengthens its abbreviated hashes as the number of objects grows (the estimate assumes uniformly random values and does not apply to sequential or biased numbering)
+- Learning the binomial distribution instead of tossing coins: in a statistics class, count again and again how many bits of SHA-256 change when one input bit flips, and compare the counts with the binomial distribution B(256, 1/2): mean 128, standard deviation 8, 95% range 112–144. An experiment that would take dozens of rounds of tossing 256 coins repeats in seconds (the comparison assumes an ideal hash in which each bit changes with probability one half)
+- Experiencing the limits of visual comparison: people who design pairing or key-verification screens compare the 11 different fingerprints that draw the same fingerprint art (Figure 19 of the 2009 paper by Loss, Limmer and von Gernler) on the 17 × 9 = 153-cell board. Visual checks are handy, but the same art does not mean the same fingerprint
+- Making collisions with anagrams: ToyHash16 depends only on the sum of the bytes, so words made by rearranging letters (anagrams) always give the same value. listen, silent and enlist all give `028f`. Word pairs found with [Anagram Hunter](https://ipusiron.github.io/anagram-hunter/) (Day045) become ready-made examples of collisions in a weak hash (mixing in capital letters changes the sum: Listen gives `026f`)
+- Explaining the "security margin" by removing rounds: people learning cipher design change the number of SHA-256 rounds in the Diffusion tab. With seed 7 and 100 inputs, the cells that never change drop from 15,950 of 16,384 at 1 round to 0 at 8 rounds. The gap to the real 64 rounds is the margin built into the design (diffusion that looks good at 8 rounds does not by itself make the hash secure)
+
 ### Classes and self-study
 
 - In a university or vocational school class, students enter their own names and check whether the number of bits changed by a one-bit flip falls within the expected range. Putting SHA-256 and ToyHash16 side by side starts a discussion of what makes a good hash
